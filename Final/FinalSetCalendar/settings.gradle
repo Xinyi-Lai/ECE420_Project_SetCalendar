@@ -1,0 +1,2 @@
+rootProject.name='Final Set Calendar'
+include ':app'
