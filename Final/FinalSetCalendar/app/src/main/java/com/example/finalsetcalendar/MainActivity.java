@@ -13,6 +13,7 @@ import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -35,10 +36,13 @@ public class MainActivity extends AppCompatActivity {
     public static final int CAMERA_REQUEST_CODE = 102;
     public static final int GALLERY_REQUEST_CODE = 105;
 
+    public static int width = 640;
+    public static int height = 480;
+    public static Bitmap bmp;
+
     String currentPhotoPath;
-    
-    ImageView selectedImage;
-    Button cameraBtn, galleryBtn;
+    public ImageView selectedImage;
+    Button cameraBtn, galleryBtn, detectBtn;
 
 
     @Override
@@ -49,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
         selectedImage = findViewById(R.id.displayImageView);
         cameraBtn = findViewById(R.id.cameraBtn);
         galleryBtn = findViewById(R.id.galleryBtn);
+        detectBtn = findViewById(R.id.detectBtn);
 
         cameraBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -67,6 +72,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        detectBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openActivityDetect();
+            }
+        });
+
+    }
+
+    private void openActivityDetect() {
+        startActivity(new Intent(MainActivity.this, DetectActivity.class));
     }
 
     private void askCameraPermissions() {
@@ -102,8 +118,9 @@ public class MainActivity extends AppCompatActivity {
                 Uri contentUri = Uri.fromFile(f);
                 mediaScanIntent.setData(contentUri);
                 this.sendBroadcast(mediaScanIntent);
-            }
 
+                setupBitmap();
+            }
         }
 
         if (requestCode == GALLERY_REQUEST_CODE) {
@@ -113,9 +130,18 @@ public class MainActivity extends AppCompatActivity {
                 String imageFileName = "JPEG_" + timeStamp +"."+getFileExt(contentUri);
                 Log.d("tag", "onActivityResult: Gallery Image Uri:  " +  imageFileName);
                 selectedImage.setImageURI(contentUri);
-            }
 
+                setupBitmap();
+            }
         }
+
+    }
+
+    private void setupBitmap() {
+        BitmapDrawable abmp = (BitmapDrawable) selectedImage.getDrawable();
+        bmp = abmp.getBitmap();
+        //Log.d("tag", "bitmap size = (height, width) = " + bmp.getHeight() + ", " + bmp.getWidth());
+        bmp = Bitmap.createScaledBitmap(bmp, width, height, true);
     }
 
     private String getFileExt(Uri contentUri) {
@@ -123,7 +149,6 @@ public class MainActivity extends AppCompatActivity {
         MimeTypeMap mime = MimeTypeMap.getSingleton();
         return mime.getExtensionFromMimeType(c.getType(contentUri));
     }
-
 
     private File createImageFile() throws IOException {
         // Create an image file name

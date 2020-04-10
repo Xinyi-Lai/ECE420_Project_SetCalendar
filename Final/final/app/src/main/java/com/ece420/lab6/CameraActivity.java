@@ -185,7 +185,7 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     }
 
     // Helper function to merge the results and convert GrayScale to RGB
-    public int[] merge(int[] xdata,int[] ydata){
+    public int[] merge(int[] xdata, int[] ydata){
         int size = height * width;
         int[] mergeData = new int[size];
         for(int i=0; i<size; i++)
