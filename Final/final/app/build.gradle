@@ -4,7 +4,7 @@ android {
     compileSdkVersion 25
 
     defaultConfig {
-        applicationId "com.ece420.lab6"
+        applicationId 'com.ece420.lab6'
         minSdkVersion 23
         targetSdkVersion 25
         versionCode 1
