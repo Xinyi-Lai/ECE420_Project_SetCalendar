@@ -13,7 +13,10 @@ import android.widget.ImageView;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
 import org.opencv.imgproc.Imgproc;
+
+import java.util.Arrays;
 
 
 public class DetectActivity extends AppCompatActivity {
@@ -50,9 +53,34 @@ public class DetectActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Log.d("tag", "step" + stepFlag);
                 //test();
-                convertToGray();
+                //convertToGray();
+                encode();
             }
         });
+
+    }
+
+    private void encode() {
+
+        // get gray Mat
+        Utils.bitmapToMat(bmp, rgbaMat);
+        Imgproc.cvtColor(rgbaMat, grayMat, Imgproc.COLOR_RGB2GRAY);
+
+        Log.d("tag", String.valueOf(grayMat.total()));
+        Log.d("tag", String.valueOf(grayMat.channels()));
+
+        byte[] imgData = new byte[(int) (grayMat.total() * grayMat.channels())];
+        Arrays.fill(imgData, (byte) 0);
+        grayMat.put(0, 0, imgData);
+
+        Rect r = new Rect(10, 10, 100, 100);
+        Mat smallImg = grayMat.submat(r);
+
+
+        // show image
+        Bitmap tmp = Bitmap.createBitmap(100, 100, Bitmap.Config.RGB_565);
+        Utils.matToBitmap(smallImg, tmp);
+        textImage.setImageBitmap(tmp);
 
     }
 
@@ -84,5 +112,6 @@ public class DetectActivity extends AppCompatActivity {
         textImage.setImageBitmap(grayBitmap);
 
     }
+
 
 }
