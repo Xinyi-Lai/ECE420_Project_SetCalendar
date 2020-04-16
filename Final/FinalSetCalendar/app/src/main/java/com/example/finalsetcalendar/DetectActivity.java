@@ -3,6 +3,7 @@ package com.example.finalsetcalendar;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 
 import android.os.Bundle;
@@ -11,12 +12,14 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 
+import org.opencv.core.Mat;
+
 
 public class DetectActivity extends AppCompatActivity {
 
     ImageView textImage;
     Button stepBtn;
-    Bitmap bmp;
+    Bitmap bmp, grayBitmap;
     int height, width;
     int stepFlag = 0;
 
@@ -59,6 +62,21 @@ public class DetectActivity extends AppCompatActivity {
         }
         textImage.setImageBitmap(tmp);
         Log.d("tag", "step" + stepFlag + " done");
+    }
+
+
+    public void convertToGray(View v){
+        Mat Rgba = new Mat();
+        Mat grayMat = new Mat();
+
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inDither=false;
+        o.inSampleSize=4;
+
+        grayBitmap = Bitmap.createBitmap()
+
+
+
     }
 
 }
