@@ -3,7 +3,6 @@ package com.example.finalsetcalendar;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
 
 import android.os.Bundle;
@@ -12,18 +11,20 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 
+import org.opencv.android.Utils;
 import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
 
 
 public class DetectActivity extends AppCompatActivity {
 
     ImageView textImage;
     Button stepBtn;
-    Bitmap bmp, grayBitmap;
+    Bitmap bmp;
     int height, width;
     int stepFlag = 0;
 
-    byte[] imageByte;
+    Mat rgbaMat, grayMat;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,6 +32,9 @@ public class DetectActivity extends AppCompatActivity {
         setContentView(R.layout.activity_detect);
         textImage = findViewById(R.id.textImageView);
         stepBtn = findViewById(R.id.stepBtn);
+
+        rgbaMat = new Mat();
+        grayMat = new Mat();
 
         // Load bitmap from main activity
         bmp = MainActivity.bmp;
@@ -45,7 +49,8 @@ public class DetectActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 Log.d("tag", "step" + stepFlag);
-                test();
+                //test();
+                convertToGray();
             }
         });
 
@@ -65,17 +70,18 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    public void convertToGray(View v){
-        Mat Rgba = new Mat();
-        Mat grayMat = new Mat();
+    public void convertToGray(){
 
-        BitmapFactory.Options o = new BitmapFactory.Options();
-        o.inDither=false;
-        o.inSampleSize=4;
+        Bitmap grayBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
 
-        grayBitmap = Bitmap.createBitmap()
+        // Bitmap to Mat
+        Utils.bitmapToMat(bmp, rgbaMat);
+        Imgproc.cvtColor(rgbaMat, grayMat, Imgproc.COLOR_RGB2GRAY);
 
-
+        // Mat to Bitmap
+        Utils.matToBitmap(grayMat, grayBitmap);
+        // Bitmap to Imageview
+        textImage.setImageBitmap(grayBitmap);
 
     }
 
