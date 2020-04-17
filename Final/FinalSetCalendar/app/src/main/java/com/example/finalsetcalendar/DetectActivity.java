@@ -17,13 +17,17 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.features2d.MSER;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.opencv.core.CvType.CV_8U;
 import static org.opencv.features2d.MSER.*;
+import static org.opencv.imgproc.Imgproc.INTER_AREA;
+import static org.opencv.imgproc.Imgproc.resize;
 
 
 public class DetectActivity extends AppCompatActivity {
@@ -34,7 +38,7 @@ public class DetectActivity extends AppCompatActivity {
     int height, width;
     int stepFlag;
 
-    Mat origMat, rgbaMat, grayMat;
+    Mat origMat, rgbaMat, grayMat, bwMat;
     List<Rect> rects;
 
     @Override
@@ -73,8 +77,13 @@ public class DetectActivity extends AppCompatActivity {
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
-                    //classify();
+                    Rect roi1 = rects.get(1);
+                    Log.d("tag", "rect[1]" + rects.get(1));
+                    encode(roi1);
                 }
+
+//                // test
+//                resize();
 
                 // Mat to Bitmap to Imageview
                 Utils.matToBitmap(rgbaMat, bmp);
@@ -90,6 +99,7 @@ public class DetectActivity extends AppCompatActivity {
         origMat = new Mat();
         rgbaMat = new Mat();
         grayMat = new Mat();
+        bwMat = new Mat();
         rects = new ArrayList<Rect>();
 
         // Load bitmap from main activity
@@ -101,6 +111,7 @@ public class DetectActivity extends AppCompatActivity {
         // Bitmap to Mat
         Utils.bitmapToMat(bmp, origMat);
         Imgproc.cvtColor(origMat, grayMat, Imgproc.COLOR_RGB2GRAY);
+        Imgproc.threshold(grayMat, bwMat, 128, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
         // Display orig image
         textImage.setImageBitmap(bmp);
     }
@@ -205,4 +216,137 @@ public class DetectActivity extends AppCompatActivity {
 
         return real_rects;
     }
+
+
+    public void encode( Rect roi ) {
+
+        Mat roiMat = bwMat.submat(roi);
+
+        // first resize
+
+        int size = 32;
+        Mat resizeMat = Mat.zeros(size, size, CV_8U);
+
+        int h = roi.height;
+        int w = roi.width;
+
+        Log.d("tag", "roi.width " + roi.width + "roi.height " + roi.height);
+
+        // if it is tall and thin
+        if (h > w) {
+            float scale = (float)size / (float)h;
+            Mat tmp = new Mat();
+            Size scaleSize = new Size( (int) (w*scale+0.5), (int) (h*scale+0.5) );
+
+            Log.d("tag", "w = " + scaleSize.width + "h = " + scaleSize.height);
+
+            resize(roiMat, tmp, scaleSize, 0, 0, INTER_AREA);
+
+            byte[] tmpData = new byte[(int) (tmp.total()*tmp.channels())];
+            tmp.get(0, 0, tmpData);
+            byte[] resizeData = new byte[(int) (resizeMat.total()*resizeMat.channels())];
+
+            int margin = resizeMat.cols()/2 - tmp.cols()/2;
+
+            for (int y = 0; y < resizeMat.rows(); y++) {
+                for (int x = 0; x < resizeMat.cols(); x++) {
+                    for (int c = 0; c < resizeMat.channels(); c++) {
+                        // pad white pixels outside
+                        if ( (x < margin) || (x > resizeMat.cols() - margin) ) {
+                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = (byte)255;
+                        } else {
+                            byte pixelValue = tmpData[( y * tmp.cols() + (x-margin) ) * tmp.channels() + c];
+                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = pixelValue;
+                        }
+                    }
+                }
+            }
+            resizeMat.put(0, 0, resizeData);
+        }
+
+        // if it is short and fat
+        else {
+            float scale = (float)size / (float)w;
+            Mat tmp = new Mat();
+            Size scaleSize = new Size( (int) (w*scale+0.5), (int) (h*scale+0.5) );
+
+            Log.d("tag", "w = " + scaleSize.width + "h = " + scaleSize.height);
+
+            resize(roiMat, tmp, scaleSize, 0, 0, INTER_AREA);
+
+            byte[] tmpData = new byte[(int) (tmp.total()*tmp.channels())];
+            tmp.get(0, 0, tmpData);
+            byte[] resizeData = new byte[(int) (resizeMat.total()*resizeMat.channels())];
+
+            int margin = resizeMat.rows()/2 - tmp.rows()/2;
+
+            for (int y = 0; y < resizeMat.rows(); y++) {
+                for (int x = 0; x < resizeMat.cols(); x++) {
+                    for (int c = 0; c < resizeMat.channels(); c++) {
+                        // pad white pixels outside
+                        if ( (y < margin) || (y > resizeMat.cols() - margin) ) {
+                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = (byte)255;
+                        } else {
+                            byte pixelValue = tmpData[( (y-margin) * tmp.cols() + x ) * tmp.channels() + c];
+                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = pixelValue;
+                        }
+                    }
+                }
+            }
+            resizeMat.put(0, 0, resizeData);
+        }
+
+        // then encode
+        String mlbp = mlbp_encode(resizeMat, size, true);
+
+        Log.d("tag", mlbp);
+
+        rgbaMat = bwMat;
+    }
+
+    public String mlbp_encode(Mat img, int size, boolean inv){
+        String img_mlbp = "";
+
+        for (int i=1; i<size-1; i++){
+            for (int j=1; j<size-1; j++){
+                String mlbp = "";
+                Mat roi = img.adjustROI(i-1, i+2, j-1, j+2);
+                double avg = mat_mean(roi);
+                int[] neigh_row_idx = {i-1, i-1, i-1, i,   i+1, i+1, i+1, i};
+                int[] neigh_col_idx = {j-1, j,   j+1, j+1, j+1, j,   j-1, j-1};
+
+                for (int k=0; k<neigh_col_idx.length; k++){
+                    if (!inv){
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] > avg){
+                            mlbp += "1";
+                        }else{
+                            mlbp += "0";
+                        }
+                    }else{
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] < avg){
+                            mlbp += "1";
+                        }else{
+                            mlbp += "0";
+                        }
+                    }
+                }
+
+                img_mlbp += mlbp;
+            }
+        }
+
+        return img_mlbp;
+    }
+
+
+    public double mat_mean(Mat img){
+        double sum = 0;
+        for (int i=0; i<img.rows(); i++){
+            for (int j=0; j<img.cols(); j++){
+                sum += img.get(i, j)[0]; // should be grayscale
+            }
+        }
+        return sum/(img.total());
+    }
+
 }
