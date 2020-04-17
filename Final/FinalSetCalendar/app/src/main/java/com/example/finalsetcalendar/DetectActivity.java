@@ -77,13 +77,12 @@ public class DetectActivity extends AppCompatActivity {
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
+
                     Rect roi1 = rects.get(1);
                     Log.d("tag", "rect[1]" + rects.get(1));
                     encode(roi1);
-                }
 
-//                // test
-//                resize();
+                }
 
                 // Mat to Bitmap to Imageview
                 Utils.matToBitmap(rgbaMat, bmp);
@@ -114,19 +113,6 @@ public class DetectActivity extends AppCompatActivity {
         Imgproc.threshold(grayMat, bwMat, 128, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
         // Display orig image
         textImage.setImageBitmap(bmp);
-    }
-
-    private void test() {
-        Bitmap tmp = Bitmap.createBitmap(bmp.getWidth(),bmp.getHeight(), bmp.getConfig());
-        for (int i=0; i<width; i++) {
-            for (int j=0; j<height; j++) {
-                int p = bmp.getPixel(i, j);
-                tmp.setPixel(i, j, Color.argb(Color.alpha(p), Color.red(p), 0, 0));
-            }
-            //Log.d("tag", "i=" + i);
-        }
-        textImage.setImageBitmap(tmp);
-        Log.d("tag", "step" + stepFlag + " done");
     }
 
 
@@ -301,7 +287,8 @@ public class DetectActivity extends AppCompatActivity {
 
         Log.d("tag", mlbp);
 
-        rgbaMat = bwMat;
+        origMat.copyTo(rgbaMat);
+        Imgproc.rectangle(rgbaMat, roi.tl(), roi.br(), new Scalar(0, 255, 0), 2);
     }
 
     public String mlbp_encode(Mat img, int size, boolean inv){
@@ -334,6 +321,8 @@ public class DetectActivity extends AppCompatActivity {
                 img_mlbp += mlbp;
             }
         }
+
+        Log.d("tag", "len = " + img_mlbp.length());
 
         return img_mlbp;
     }
