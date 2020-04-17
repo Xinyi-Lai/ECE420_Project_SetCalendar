@@ -1,15 +1,14 @@
 package com.example.finalsetcalendar;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.graphics.Bitmap;
-
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
@@ -20,16 +19,14 @@ import org.opencv.core.Range;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
-import org.opencv.imgproc.Imgproc;
 import org.opencv.features2d.MSER;
+import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
 import java.util.Dictionary;
-import java.util.Enumeration;
 import java.util.List;
 
-import static org.opencv.core.CvType.CV_8U;
-import static org.opencv.features2d.MSER.*;
+import static org.opencv.features2d.MSER.create;
 import static org.opencv.imgproc.Imgproc.INTER_AREA;
 import static org.opencv.imgproc.Imgproc.resize;
 
@@ -68,8 +65,6 @@ public class DetectActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
 
-                test();
-
                 stepFlag += 1;
                 // Step 1: extract MSER
                 if (stepFlag == 1) {
@@ -89,10 +84,17 @@ public class DetectActivity extends AppCompatActivity {
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
-                    Rect roi1 = rects.get(7);
-                    //Rect roi1 = rects.get(5);
-                    String mlbp= encodeImg(roi1);
-//                    mser_classify();
+                    Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
+                    cannyClassify();
+
+                    //String mlbp= encodeImg(rects.get(7));   //"M"
+                    //String mlbp= encodeImg(rects.get(5));   //"6"
+                    //CannyClassifier myCanny = new CannyClassifier(mlbp);
+                    //double sim = myCanny.compare_mlbp(mlbp, myCanny.mlbp_dict.get("6"));
+                    //Log.d("tag", "simwithM: " + sim);
+                    //Log.d("tag", "letter: " + myCanny.letter);
+                    //Log.d("tag", "sim: " + myCanny.sim);
+                    //Log.d("tag", "class: " + myCanny.theclass);
                 }
 
                 // Mat to Bitmap to Imageview
@@ -103,13 +105,6 @@ public class DetectActivity extends AppCompatActivity {
 
     }
 
-    private void test() {
-
-        CannyClassifier myCanny = new CannyClassifier();
-        double sim = myCanny.compare_mlbp(myCanny.mlbp_dict.get("6"), myCanny.mlbp_dict.get("M"));
-        Log.d("tag", "sim" + sim);
-
-    }
 
     private void reset() {
         // reset variable
@@ -295,12 +290,11 @@ public class DetectActivity extends AppCompatActivity {
         }
         bwMat.put(0, 0, bwData);
         rgbaMat = bwMat;
- */
+*/
 
         ////////////////////// then encode ////////////////////////////////////////////
-        //String mlbp = "";
-        String mlbp = mlbp_encode(resizeMat, size, true);
-        Log.d("tag", mlbp);
+        String mlbp = mlbp_encode(resizeMat, size, false);
+        //Log.d("tag", mlbp);
         return mlbp;
     }
 
@@ -310,32 +304,23 @@ public class DetectActivity extends AppCompatActivity {
         for (int i=1; i<size-1; i++){
             for (int j=1; j<size-1; j++){
                 String mlbp = "";
-                Mat roi = img.adjustROI(i-1, i+2, j-1, j+2);
+                Mat roi = img.rowRange(i-1, i+2).colRange(j-1, j+2);
                 double avg = mat_mean(roi);
                 int[] neigh_row_idx = {i-1, i-1, i-1, i,   i+1, i+1, i+1, i};
                 int[] neigh_col_idx = {j-1, j,   j+1, j+1, j+1, j,   j-1, j-1};
 
                 for (int k=0; k<neigh_col_idx.length; k++){
                     if (!inv){
-                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] > avg){
-                            mlbp += "1";
-                        }else{
-                            mlbp += "0";
-                        }
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] > avg) mlbp += "1";
+                        else mlbp += "0";
                     }else{
-                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] < avg){
-                            mlbp += "1";
-                        }else{
-                            mlbp += "0";
-                        }
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] < avg) mlbp += "1";
+                        else mlbp += "0";
                     }
                 }
-
                 img_mlbp += mlbp;
             }
         }
-
-        Log.d("tag", "len = " + img_mlbp.length());
 
         return img_mlbp;
     }
@@ -351,101 +336,41 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    public double compare_mlbp(String mlbp_1, String mlbp_2){
-        if (mlbp_1 == null || mlbp_2 == null){
-            return -1.0;
-        }
-        if (mlbp_1.length() != mlbp_2.length()){
-            return -1.0;
-        }
+    public void cannyClassify (){
 
-        int dist = 0;
-        for (int i=0; i<mlbp_1.length(); i++){
-            if (mlbp_1.charAt(i) != mlbp_2.charAt(i)){
-                dist += 1;
+        strong_text = new ArrayList<Rect>();
+        weak_text = new ArrayList<Rect>();
+        non_text = new ArrayList<Rect>();
+
+        for (int i=0; i<rects.size(); i++){
+
+            String mlbp= encodeImg(rects.get(i));
+            CannyClassifier myCanny = new CannyClassifier(mlbp);
+
+            Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
+            Log.d("tag", "letter: " + myCanny.letter + "sim: " + myCanny.sim + "class: " + myCanny.theclass);
+
+            if (myCanny.theclass == myCanny.STRONG) {
+                strong_text.add(rects.get(i));
+            } else if (myCanny.theclass == myCanny.WEAK) {
+                weak_text.add(rects.get(i));
+            } else {
+                non_text.add(rects.get(i));
             }
         }
-        return 1.0 - ((double)dist / (double)mlbp_1.length());
-    }
 
-    public void cannyTextClassifier(Rect roi, Dictionary<String, String> mlbp_dict){
-        String roi_mlbp = encodeImg(roi);
-        String inv_roi_mlbp = encodeImg(roi);
+        Log.d("tag", "# of strong: " + strong_text.size());
+        Log.d("tag", "# of weak: " + weak_text.size());
 
-        List<String> exempt_list = new ArrayList<String>(); // *****************an unused list for you to test****************************
-
-        Enumeration<String> keys = mlbp_dict.keys();
-        while (keys.hasMoreElements()) {
-            String cur_key = keys.nextElement();
-            String std_mlbp = mlbp_dict.get(cur_key);
-            double sim = Math.max(compare_mlbp(roi_mlbp, std_mlbp), compare_mlbp(inv_roi_mlbp, std_mlbp));
-            if (sim > maxsim && !exempt_list.contains(cur_key)) {
-                maxsim = sim;
-                letter = cur_key;
-            }
-        }
-    }
-
-    public void cannyTextClassify(List<Rect> rois){
-        double th1 = 0.75;
-        double th2 = 0.45;
-
-        double tth1 = 0.88;
-        double tth2 = 0.60;
-
-        double lth1 = 0.85;
-        double lth2 = 0.60;
-
-        for (int i=0; i<rois.size(); i++){
-            //Mat roi = bwMat.adjustROI(rois.get(i).y, rois.get(i).y+rois.get(i).height, rois.get(i).x, rois.get(i).x+rois.get(i).width);
-
-            cannyTextClassifier(rois.get(i), mlbp_dict); // update maxsim and letter
-
-            if (letter != "i" && letter != "j"){
-                if (letter == "t"){
-                    if (maxsim > tth1){
-                        strong_text.add(rois.get(i));
-                    }else if (maxsim > tth2){
-                        weak_text.add(rois.get(i));
-                    }else{
-                        non_text.add(rois.get(i));
-                    }
-                }else if (letter == "l"){
-                    if (maxsim > lth1){
-                        strong_text.add(rois.get(i));
-                    }else if (maxsim > lth2){
-                        weak_text.add(rois.get(i));
-                    }else{
-                        non_text.add(rois.get(i));
-                    }
-                }else if (maxsim > th1){
-                    strong_text.add(rois.get(i));
-                }else if (maxsim > th2){
-                    weak_text.add(rois.get(i));
-                }else {
-                    non_text.add(rois.get(i));
-                }
-            }
-
-        }
-    }
-
-    // top-level function for canny text classification
-    public void mser_classify(){
-        // classify MSER regions
-        cannyTextClassify(rects);
-
-        // mark strong text region with green boxes
+        // mark strong text with green boxes, weak text with red boxes
         origMat.copyTo(rgbaMat);
-        for (int i=0; i<strong_text.size(); i++) {
+        for (int i=0; i<strong_text.size(); i++)
             Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
-        }
-
-        // mark weak text region with red boxes
-        for (int i=0; i<weak_text.size(); i++) {
+        for (int i=0; i<weak_text.size(); i++)
             Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
-        }
+
     }
+
 
 
 }
