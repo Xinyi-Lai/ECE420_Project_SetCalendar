@@ -22,9 +22,14 @@ import org.opencv.imgproc.Imgproc;
 import org.opencv.features2d.MSER;
 
 import java.util.ArrayList;
+import java.util.Dictionary;
+import java.util.Enumeration;
 import java.util.List;
 
+import static org.opencv.core.CvType.CV_8U;
 import static org.opencv.features2d.MSER.*;
+import static org.opencv.imgproc.Imgproc.INTER_AREA;
+import static org.opencv.imgproc.Imgproc.resize;
 
 
 public class DetectActivity extends AppCompatActivity {
@@ -34,9 +39,12 @@ public class DetectActivity extends AppCompatActivity {
     Bitmap bmp;
     int height, width;
     int stepFlag;
+    double maxsim;
+    String letter;
 
-    Mat origMat, rgbaMat, grayMat;
-    List<Rect> rects;
+    Mat origMat, rgbaMat, grayMat, bwMat;
+    List<Rect> rects, strong_text, weak_text, non_text;
+    Dictionary<String, String> mlbp_dict;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,7 +99,11 @@ public class DetectActivity extends AppCompatActivity {
         origMat = new Mat();
         rgbaMat = new Mat();
         grayMat = new Mat();
+        bwMat = new Mat();
         rects = new ArrayList<Rect>();
+        strong_text = new ArrayList<Rect>();
+        weak_text = new ArrayList<Rect>();
+        non_text = new ArrayList<Rect>();
 
         // Load bitmap from main activity
         bmp = MainActivity.bmp.copy(MainActivity.bmp.getConfig(), false);
@@ -102,6 +114,7 @@ public class DetectActivity extends AppCompatActivity {
         // Bitmap to Mat
         Utils.bitmapToMat(bmp, origMat);
         Imgproc.cvtColor(origMat, grayMat, Imgproc.COLOR_RGB2GRAY);
+        Imgproc.threshold(grayMat, bwMat, 128, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
         // Display orig image
         textImage.setImageBitmap(bmp);
     }
@@ -249,5 +262,90 @@ public class DetectActivity extends AppCompatActivity {
             }
         }
         return sum/(img.total());
+    }
+
+    public String encodeImg(Mat img, boolean bw, boolean inv){
+        return null;
+    }
+
+    public double compare_mlbp(String mlbp_1, String mlbp_2){
+        if (mlbp_1 == null || mlbp_2 == null){
+            return -1.0;
+        }
+        if (mlbp_1.length() != mlbp_2.length()){
+            return -1.0;
+        }
+
+        int dist = 0;
+        for (int i=0; i<mlbp_1.length(); i++){
+            if (mlbp_1.charAt(i) != mlbp_2.charAt(i)){
+                dist += 1;
+            }
+        }
+        return 1.0 - ((double)dist / (double)mlbp_1.length());
+    }
+
+    public void cannyTextClassifier(Mat roi, Dictionary<String, String> mlbp_dict){
+        String roi_mlbp = encodeImg(roi, true, false);
+        String inv_roi_mlbp = encodeImg(roi, true, true);
+
+//        double maxsim = -1.0;
+//        String key = "";
+        List<String> exempt_list = new ArrayList<String>();
+
+        Enumeration<String> keys = mlbp_dict.keys();
+        while (keys.hasMoreElements()) {
+            String cur_key = keys.nextElement();
+            String std_mlbp = mlbp_dict.get(cur_key);
+            double sim = Math.max(compare_mlbp(roi_mlbp, std_mlbp), compare_mlbp(inv_roi_mlbp, std_mlbp));
+            if (sim > maxsim && !exempt_list.contains(cur_key)) {
+                maxsim = sim;
+                letter = cur_key;
+            }
+        }
+    }
+
+    public void cannyTextClassify(List<Rect> rois){
+        double th1 = 0.75;
+        double th2 = 0.45;
+
+        double tth1 = 0.88;
+        double tth2 = 0.60;
+
+        double lth1 = 0.85;
+        double lth2 = 0.60;
+
+        for (int i=0; i<rois.size(); i++){
+            Mat roi = bwMat.adjustROI(rois.get(i).y, rois.get(i).y+rois.get(i).height, rois.get(i).x, rois.get(i).x+rois.get(i).width);
+
+            cannyTextClassifier(roi, mlbp_dict); // update maxsim and letter
+
+            if (letter != "i" && letter != "j"){
+                if (letter == "t"){
+                    if (maxsim > tth1){
+                        strong_text.add(rois.get(i));
+                    }else if (maxsim > tth2){
+                        weak_text.add(rois.get(i));
+                    }else{
+                        non_text.add(rois.get(i));
+                    }
+                }else if (letter == "l"){
+                    if (maxsim > lth1){
+                        strong_text.add(rois.get(i));
+                    }else if (maxsim > lth2){
+                        weak_text.add(rois.get(i));
+                    }else{
+                        non_text.add(rois.get(i));
+                    }
+                }else if (maxsim > th1){
+                    strong_text.add(rois.get(i));
+                }else if (maxsim > th2){
+                    weak_text.add(rois.get(i));
+                }else {
+                    non_text.add(rois.get(i));
+                }
+            }
+
+        }
     }
 }
