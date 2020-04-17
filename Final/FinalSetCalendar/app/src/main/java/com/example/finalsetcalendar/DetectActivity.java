@@ -3,7 +3,6 @@ package com.example.finalsetcalendar;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.graphics.Bitmap;
-import android.graphics.Color;
 
 import android.os.Bundle;
 import android.util.Log;
@@ -68,6 +67,9 @@ public class DetectActivity extends AppCompatActivity {
         stepBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+
+                test();
+
                 stepFlag += 1;
                 // Step 1: extract MSER
                 if (stepFlag == 1) {
@@ -98,6 +100,14 @@ public class DetectActivity extends AppCompatActivity {
                 textImage.setImageBitmap(bmp);
             }
         });
+
+    }
+
+    private void test() {
+
+        CannyClassifier myCanny = new CannyClassifier();
+        double sim = myCanny.compare_mlbp(myCanny.mlbp_dict.get("6"), myCanny.mlbp_dict.get("M"));
+        Log.d("tag", "sim" + sim);
 
     }
 
@@ -329,7 +339,6 @@ public class DetectActivity extends AppCompatActivity {
 
         return img_mlbp;
     }
-
 
     public double mat_mean(Mat img){
         double sum = 0;
