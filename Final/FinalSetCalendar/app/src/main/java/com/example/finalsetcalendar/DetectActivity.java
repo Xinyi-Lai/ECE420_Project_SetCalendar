@@ -15,6 +15,7 @@ import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfRect;
+import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -22,6 +23,8 @@ import org.opencv.imgproc.Imgproc;
 import org.opencv.features2d.MSER;
 
 import java.util.ArrayList;
+import java.util.Dictionary;
+import java.util.Enumeration;
 import java.util.List;
 
 import static org.opencv.core.CvType.CV_8U;
@@ -37,9 +40,12 @@ public class DetectActivity extends AppCompatActivity {
     Bitmap bmp;
     int height, width;
     int stepFlag;
+    double maxsim = -1.0;
+    String letter = "";
 
     Mat origMat, rgbaMat, grayMat, bwMat;
-    List<Rect> rects;
+    List<Rect> rects, strong_text, weak_text, non_text;
+    Dictionary<String, String> mlbp_dict;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,14 +79,18 @@ public class DetectActivity extends AppCompatActivity {
                     Log.d("tag", "step" + stepFlag + ": reduce MSER");
                     mser_reduce();
                     Log.d("tag", "number of regions: " + rects.size());
+                    // DEBUG
+                    for (int i=0; i<rects.size(); i++) {
+                        Log.d("tag", "rect[" + i + "]: " + rects.get(i));
+                    }
+
                 }
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
-
-                    Rect roi1 = rects.get(1);
-                    Log.d("tag", "rect[1]" + rects.get(1));
-                    encode(roi1);
+//                    Rect roi1 = rects.get(5);
+//                    encodeImg(roi1);
+                    mser_classify();
 
                 }
 
@@ -100,6 +110,9 @@ public class DetectActivity extends AppCompatActivity {
         grayMat = new Mat();
         bwMat = new Mat();
         rects = new ArrayList<Rect>();
+        strong_text = new ArrayList<Rect>();
+        weak_text = new ArrayList<Rect>();
+        non_text = new ArrayList<Rect>();
 
         // Load bitmap from main activity
         bmp = MainActivity.bmp.copy(MainActivity.bmp.getConfig(), false);
@@ -204,91 +217,106 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    public void encode( Rect roi ) {
+    public String encodeImg( Rect roi ) {
+
+        // to see which rect is being encoded
+        origMat.copyTo(rgbaMat);
+        Imgproc.rectangle(rgbaMat, roi.tl(), roi.br(), new Scalar(0, 255, 0), 2);
+
+        Utils.matToBitmap(rgbaMat, bmp);
+        textImage.setImageBitmap(bmp);
 
         Mat roiMat = bwMat.submat(roi);
 
         // first resize
-
+        Mat resizeMat;
+        Mat tmp = new Mat();
         int size = 32;
-        Mat resizeMat = Mat.zeros(size, size, CV_8U);
 
         int h = roi.height;
         int w = roi.width;
-
         Log.d("tag", "roi.width " + roi.width + "roi.height " + roi.height);
 
-        // if it is tall and thin
+
+        //******** BE CAREFUL, THE IMAGE IS ROTATED CW 90 DEGREES, NEED TO ROTATE BACK *******//
+
+        // if it is tall and thin, ACTUALLY it is short and fat
         if (h > w) {
             float scale = (float)size / (float)h;
-            Mat tmp = new Mat();
+//            Mat tmp = new Mat();
             Size scaleSize = new Size( (int) (w*scale+0.5), (int) (h*scale+0.5) );
-
-            Log.d("tag", "w = " + scaleSize.width + "h = " + scaleSize.height);
-
+            //Log.d("tag", "scaleSize " + scaleSize);
             resize(roiMat, tmp, scaleSize, 0, 0, INTER_AREA);
 
-            byte[] tmpData = new byte[(int) (tmp.total()*tmp.channels())];
-            tmp.get(0, 0, tmpData);
-            byte[] resizeData = new byte[(int) (resizeMat.total()*resizeMat.channels())];
+            // FIXME: rotation padded with BLACK
+            Mat rottmpM = Imgproc.getRotationMatrix2D(new Point(tmp.cols()/2, tmp.rows()/2), 270, 1);
+            Imgproc.warpAffine(tmp, tmp, rottmpM, new Size(tmp.rows(), tmp.cols()));
 
-            int margin = resizeMat.cols()/2 - tmp.cols()/2;
+            int margin = size/2 - tmp.rows()/2;
 
-            for (int y = 0; y < resizeMat.rows(); y++) {
-                for (int x = 0; x < resizeMat.cols(); x++) {
-                    for (int c = 0; c < resizeMat.channels(); c++) {
-                        // pad white pixels outside
-                        if ( (x < margin) || (x > resizeMat.cols() - margin) ) {
-                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = (byte)255;
-                        } else {
-                            byte pixelValue = tmpData[( y * tmp.cols() + (x-margin) ) * tmp.channels() + c];
-                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = pixelValue;
-                        }
-                    }
-                }
+            resizeMat = new Mat(margin, size, tmp.type(), new Scalar(255));
+            Mat row255 = new Mat(1, size, tmp.type(), new Scalar(255));
+
+            for (int y=0; y < tmp.rows(); y++) {
+                resizeMat.push_back(tmp.row(y));
             }
-            resizeMat.put(0, 0, resizeData);
+            for (int i=margin+tmp.rows(); i < size; i++) {
+                resizeMat.push_back(row255);
+            }
+            //Imgproc.warpAffine(resizeMat, resizeMat, rotM, rotSize);
         }
 
-        // if it is short and fat
+        // if it is short and fat: h <= w, ACTUALLY it is tall and thin
         else {
             float scale = (float)size / (float)w;
-            Mat tmp = new Mat();
+//            Mat tmp = new Mat();
             Size scaleSize = new Size( (int) (w*scale+0.5), (int) (h*scale+0.5) );
-
-            Log.d("tag", "w = " + scaleSize.width + "h = " + scaleSize.height);
-
             resize(roiMat, tmp, scaleSize, 0, 0, INTER_AREA);
 
-            byte[] tmpData = new byte[(int) (tmp.total()*tmp.channels())];
-            tmp.get(0, 0, tmpData);
-            byte[] resizeData = new byte[(int) (resizeMat.total()*resizeMat.channels())];
+            int margin = size/2 - tmp.rows()/2;
 
-            int margin = resizeMat.rows()/2 - tmp.rows()/2;
-
-            for (int y = 0; y < resizeMat.rows(); y++) {
-                for (int x = 0; x < resizeMat.cols(); x++) {
-                    for (int c = 0; c < resizeMat.channels(); c++) {
-                        // pad white pixels outside
-                        if ( (y < margin) || (y > resizeMat.cols() - margin) ) {
-                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = (byte)255;
-                        } else {
-                            byte pixelValue = tmpData[( (y-margin) * tmp.cols() + x ) * tmp.channels() + c];
-                            resizeData[(y * resizeMat.cols() + x) * resizeMat.channels() + c] = pixelValue;
-                        }
-                    }
-                }
+            resizeMat = new Mat(margin, size, tmp.type(), new Scalar(255));
+            Mat row255 = new Mat(1, size, tmp.type(), new Scalar(255));
+            for (int y=0; y < tmp.rows(); y++) {
+                resizeMat.push_back(tmp.row(y));
             }
-            resizeMat.put(0, 0, resizeData);
+            for (int i=margin+tmp.rows(); i < size; i++) {
+                resizeMat.push_back(row255);
+            }
+            Point rotCenter = new Point(size/2, size/2);
+            Mat rotM = Imgproc.getRotationMatrix2D(rotCenter, 270, 1);
+            Size rotSize = new Size(size, size);
+            Imgproc.warpAffine(resizeMat, resizeMat, rotM, rotSize);
+
         }
 
+        // show the resized roi
+//        tmp = resizeMat;
+//        byte[] resizeData = new byte[(int) (tmp.total()*tmp.channels())];
+//        tmp.get(0, 0, resizeData);
+//        byte[] bwData = new byte[(int) (bwMat.total()*bwMat.channels()) ];
+//        for (int y = 0; y < bwMat.rows(); y++) {
+//            for (int x = 0; x < bwMat.cols(); x++) {
+//                for (int c = 0; c < bwMat.channels(); c++) {
+//                    // pad white pixels outside
+//                    if ( (x >= tmp.cols()) || y >= tmp.rows() ) {
+//                        bwData[(y * bwMat.cols() + x) * bwMat.channels() + c] = (byte)128;
+//                    } else {
+//                        byte pixelValue = resizeData[( y * tmp.cols() + x ) * tmp.channels() + c];
+//                        bwData[(y * bwMat.cols() + x) * bwMat.channels() + c] = pixelValue;
+//                    }
+//                }
+//            }
+//        }
+//        bwMat.put(0, 0, bwData);
+//        rgbaMat = bwMat;
+
+
         // then encode
+
         String mlbp = mlbp_encode(resizeMat, size, true);
-
         Log.d("tag", mlbp);
-
-        origMat.copyTo(rgbaMat);
-        Imgproc.rectangle(rgbaMat, roi.tl(), roi.br(), new Scalar(0, 255, 0), 2);
+        return mlbp;
     }
 
     public String mlbp_encode(Mat img, int size, boolean inv){
@@ -337,5 +365,103 @@ public class DetectActivity extends AppCompatActivity {
         }
         return sum/(img.total());
     }
+
+
+    public double compare_mlbp(String mlbp_1, String mlbp_2){
+        if (mlbp_1 == null || mlbp_2 == null){
+            return -1.0;
+        }
+        if (mlbp_1.length() != mlbp_2.length()){
+            return -1.0;
+        }
+
+        int dist = 0;
+        for (int i=0; i<mlbp_1.length(); i++){
+            if (mlbp_1.charAt(i) != mlbp_2.charAt(i)){
+                dist += 1;
+            }
+        }
+        return 1.0 - ((double)dist / (double)mlbp_1.length());
+    }
+
+    public void cannyTextClassifier(Rect roi, Dictionary<String, String> mlbp_dict){
+        String roi_mlbp = encodeImg(roi);
+        String inv_roi_mlbp = encodeImg(roi);
+
+        List<String> exempt_list = new ArrayList<String>(); // *****************an unused list for you to test****************************
+
+        Enumeration<String> keys = mlbp_dict.keys();
+        while (keys.hasMoreElements()) {
+            String cur_key = keys.nextElement();
+            String std_mlbp = mlbp_dict.get(cur_key);
+            double sim = Math.max(compare_mlbp(roi_mlbp, std_mlbp), compare_mlbp(inv_roi_mlbp, std_mlbp));
+            if (sim > maxsim && !exempt_list.contains(cur_key)) {
+                maxsim = sim;
+                letter = cur_key;
+            }
+        }
+    }
+
+    public void cannyTextClassify(List<Rect> rois){
+        double th1 = 0.75;
+        double th2 = 0.45;
+
+        double tth1 = 0.88;
+        double tth2 = 0.60;
+
+        double lth1 = 0.85;
+        double lth2 = 0.60;
+
+        for (int i=0; i<rois.size(); i++){
+            //Mat roi = bwMat.adjustROI(rois.get(i).y, rois.get(i).y+rois.get(i).height, rois.get(i).x, rois.get(i).x+rois.get(i).width);
+
+            cannyTextClassifier(rois.get(i), mlbp_dict); // update maxsim and letter
+
+            if (letter != "i" && letter != "j"){
+                if (letter == "t"){
+                    if (maxsim > tth1){
+                        strong_text.add(rois.get(i));
+                    }else if (maxsim > tth2){
+                        weak_text.add(rois.get(i));
+                    }else{
+                        non_text.add(rois.get(i));
+                    }
+                }else if (letter == "l"){
+                    if (maxsim > lth1){
+                        strong_text.add(rois.get(i));
+                    }else if (maxsim > lth2){
+                        weak_text.add(rois.get(i));
+                    }else{
+                        non_text.add(rois.get(i));
+                    }
+                }else if (maxsim > th1){
+                    strong_text.add(rois.get(i));
+                }else if (maxsim > th2){
+                    weak_text.add(rois.get(i));
+                }else {
+                    non_text.add(rois.get(i));
+                }
+            }
+
+        }
+    }
+
+    // top-level function for canny text classification
+    public void mser_classify(){
+        // classify MSER regions
+        cannyTextClassify(rects);
+
+        // mark strong text region with green boxes
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<strong_text.size(); i++) {
+            Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
+        }
+
+        // mark weak text region with red boxes
+        for (int i=0; i<weak_text.size(); i++) {
+            Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
+        }
+    }
+
 
 }
