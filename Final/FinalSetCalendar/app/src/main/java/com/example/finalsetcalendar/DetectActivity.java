@@ -29,13 +29,13 @@ import static org.opencv.features2d.MSER.*;
 public class DetectActivity extends AppCompatActivity {
 
     ImageView textImage;
-    Button stepBtn;
+    Button stepBtn, resetBtn;
     Bitmap bmp;
     int height, width;
-    int stepFlag = 0;
+    int stepFlag;
 
-    Mat rgbaMat, grayMat;
-
+    Mat origMat, rgbaMat, grayMat;
+    List<Rect> rects;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,28 +43,66 @@ public class DetectActivity extends AppCompatActivity {
         setContentView(R.layout.activity_detect);
         textImage = findViewById(R.id.textImageView);
         stepBtn = findViewById(R.id.stepBtn);
+        resetBtn = findViewById(R.id.resetBtn);
+        // Initialization
+        reset();
 
-        rgbaMat = new Mat();
-        grayMat = new Mat();
-
-        // Load bitmap from main activity
-        bmp = MainActivity.bmp;
-        height = bmp.getHeight();
-        width = bmp.getWidth();
-        //Log.d("tag", "(height, width) = " + height + ", " + width);
-
-        // Display orig image
-        textImage.setImageBitmap(bmp);
+        resetBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                reset();
+            }
+        });
 
         stepBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d("tag", "step" + stepFlag);
-                //test();
-                process();
+                stepFlag += 1;
+                // Step 1: extract MSER
+                if (stepFlag == 1) {
+                    Log.d("tag", "step" + stepFlag + ": extract MSER");
+                    mser_detect();
+                    Log.d("tag", "number of MSER regions: " + rects.size());
+                }
+                // Step 2: reduce MSER
+                else if (stepFlag == 2) {
+                    Log.d("tag", "step" + stepFlag + ": reduce MSER");
+                    mser_reduce();
+                    Log.d("tag", "number of regions: " + rects.size());
+                }
+                // Step 3: classify ROI
+                else if (stepFlag == 3) {
+                    Log.d("tag", "step" + stepFlag + ": classify ROI");
+                    //classify();
+                }
+
+                // Mat to Bitmap to Imageview
+                Utils.matToBitmap(rgbaMat, bmp);
+                textImage.setImageBitmap(bmp);
             }
         });
 
+    }
+
+    private void reset() {
+        // reset variable
+        stepFlag = 0;
+        origMat = new Mat();
+        rgbaMat = new Mat();
+        grayMat = new Mat();
+        rects = new ArrayList<Rect>();
+
+        // Load bitmap from main activity
+        bmp = MainActivity.bmp.copy(MainActivity.bmp.getConfig(), false);
+        height = bmp.getHeight();
+        width = bmp.getWidth();
+        //Log.d("tag", "(height, width) = " + height + ", " + width);
+
+        // Bitmap to Mat
+        Utils.bitmapToMat(bmp, origMat);
+        Imgproc.cvtColor(origMat, grayMat, Imgproc.COLOR_RGB2GRAY);
+        // Display orig image
+        textImage.setImageBitmap(bmp);
     }
 
     private void test() {
@@ -81,53 +119,37 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    public void process(){
-
-        Bitmap grayBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
-
-        // Bitmap to Mat
-        Utils.bitmapToMat(bmp, rgbaMat);
-        Imgproc.cvtColor(rgbaMat, grayMat, Imgproc.COLOR_RGB2GRAY);
-
-        // detect and mark MSERs
-        rgbaMat = mser_detect(grayMat, rgbaMat);
-
-        // Mat to Bitmap
-        Utils.matToBitmap(rgbaMat, grayBitmap);
-        // Bitmap to Imageview
-        textImage.setImageBitmap(grayBitmap);
-
-    }
-
-    public Mat mser_detect(Mat graymat, Mat rgbamat){
+    public void mser_detect(){
         // basic variable
         MSER mser = create();
         List<MatOfPoint> msers = new ArrayList<MatOfPoint>();
         MatOfRect bboxes = new MatOfRect();
-
         // detect MSER regions
-        mser.detectRegions(graymat, msers, bboxes);
+        mser.detectRegions(grayMat, msers, bboxes);
 
         // get a list of rects
-        List<Rect> rects = new ArrayList<Rect>();
         for (int i=0; i<msers.size(); i++) {
             rects.add(Imgproc.boundingRect(msers.get(i)));
         }
+        // mark MSER region
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<rects.size(); i++) {
+            Imgproc.rectangle(rgbaMat, rects.get(i).tl(), rects.get(i).br(), new Scalar(0, 255, 0), 2);
+        }
+    }
 
+
+    public void mser_reduce(){
         // reduce MSER regions
-        List<Rect> real_rects = reduce_mser(rects);
-
-        // not reduce MSER regions
-//        List<Rect> real_rects = rects;
+        rects = reduce_mser(rects);
 
         // mark MSER region
-        for (int i=0; i<real_rects.size(); i++) {
-            Imgproc.rectangle(rgbamat, real_rects.get(i).tl(), real_rects.get(i).br(), new Scalar(0, 255, 0), 2);
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<rects.size(); i++) {
+            Imgproc.rectangle(rgbaMat, rects.get(i).tl(), rects.get(i).br(), new Scalar(0, 255, 0), 2);
         }
-
-        // marked image
-        return rgbamat;
     }
+
 
     public boolean cover(Rect rect1, Rect rect2){
         if (rect1.x <= rect2.x && rect1.x+rect1.width >= rect2.x+rect2.width &&
@@ -159,15 +181,16 @@ public class DetectActivity extends AppCompatActivity {
         double AREA_MAX = (double) (height*width*0.2);
         // aspect ratio
         double AR_MIN = 0.3;
-        double AR_MAX = 1.5;
+        double AR_MAX = 2.5;
 
         for (int i=0; i<regions.size(); i++){
             if (Math.min(regions.get(i).width, regions.get(i).height) < EDGE_MAX &&
                     Math.max(regions.get(i).width, regions.get(i).height) > EDGE_MIN &&
                     regions.get(i).width*regions.get(i).height < AREA_MAX &&
                     regions.get(i).width*regions.get(i).height > AREA_MIN &&
-                    (float)(regions.get(i).width/regions.get(i).height) < AR_MAX &&
-                    (float)(regions.get(i).width/regions.get(i).height) > AR_MIN){
+                    ((double)regions.get(i).width) / ((double)regions.get(i).height) < AR_MAX &&
+                    ((double)regions.get(i).width) / ((double)regions.get(i).height) > AR_MIN
+            ){
                 if (!rects.contains(regions.get(i))){
                     rects.add(regions.get(i));
                 }
