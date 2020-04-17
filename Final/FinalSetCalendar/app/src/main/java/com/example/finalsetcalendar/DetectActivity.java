@@ -39,12 +39,14 @@ public class DetectActivity extends AppCompatActivity {
     Bitmap bmp;
     int height, width;
     int stepFlag;
-    double maxsim;
-    String letter;
+    double maxsim = -1.0;
+    String letter = "";
 
     Mat origMat, rgbaMat, grayMat, bwMat;
     List<Rect> rects, strong_text, weak_text, non_text;
     Dictionary<String, String> mlbp_dict;
+
+    // *****************************you can directly copy and paste the code ABOVE this line*************************************
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,11 +101,13 @@ public class DetectActivity extends AppCompatActivity {
         origMat = new Mat();
         rgbaMat = new Mat();
         grayMat = new Mat();
-        bwMat = new Mat();
+        bwMat = new Mat(); // *************************bwMat added*********************************
         rects = new ArrayList<Rect>();
+        // *******************************three new List<Rect> added*********************************
         strong_text = new ArrayList<Rect>();
         weak_text = new ArrayList<Rect>();
         non_text = new ArrayList<Rect>();
+        // ******************************************************************************************
 
         // Load bitmap from main activity
         bmp = MainActivity.bmp.copy(MainActivity.bmp.getConfig(), false);
@@ -114,7 +118,7 @@ public class DetectActivity extends AppCompatActivity {
         // Bitmap to Mat
         Utils.bitmapToMat(bmp, origMat);
         Imgproc.cvtColor(origMat, grayMat, Imgproc.COLOR_RGB2GRAY);
-        Imgproc.threshold(grayMat, bwMat, 128, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
+        Imgproc.threshold(grayMat, bwMat, 128, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU); //*************bwMat added*************
         // Display orig image
         textImage.setImageBitmap(bmp);
     }
@@ -220,6 +224,7 @@ public class DetectActivity extends AppCompatActivity {
         return real_rects;
     }
 
+    // ************************************************ new code after mser is fixed *******************************************************
     public String mlbp_encode(Mat img, int size, boolean inv){
         String img_mlbp = "";
 
@@ -264,8 +269,9 @@ public class DetectActivity extends AppCompatActivity {
         return sum/(img.total());
     }
 
+    // ***************************** NOTE: function name is encodeImg, the same as python *****************************************
     public String encodeImg(Mat img, boolean bw, boolean inv){
-        return null;
+        return null; // ************I think you have accomplished this function, but with a different name "encode"*****************
     }
 
     public double compare_mlbp(String mlbp_1, String mlbp_2){
@@ -289,9 +295,7 @@ public class DetectActivity extends AppCompatActivity {
         String roi_mlbp = encodeImg(roi, true, false);
         String inv_roi_mlbp = encodeImg(roi, true, true);
 
-//        double maxsim = -1.0;
-//        String key = "";
-        List<String> exempt_list = new ArrayList<String>();
+        List<String> exempt_list = new ArrayList<String>(); // *****************an unused list for you to test****************************
 
         Enumeration<String> keys = mlbp_dict.keys();
         while (keys.hasMoreElements()) {
@@ -346,6 +350,23 @@ public class DetectActivity extends AppCompatActivity {
                 }
             }
 
+        }
+    }
+
+    // top-level function for canny text classification
+    public void mser_classify(){
+        // classify MSER regions
+        cannyTextClassify(rects);
+
+        // mark strong text region with green boxes
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<strong_text.size(); i++) {
+            Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
+        }
+
+        // mark weak text region with red boxes
+        for (int i=0; i<weak_text.size(); i++) {
+            Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
         }
     }
 }
