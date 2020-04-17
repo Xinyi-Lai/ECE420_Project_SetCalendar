@@ -15,6 +15,7 @@ import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfRect;
+import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
@@ -204,5 +205,49 @@ public class DetectActivity extends AppCompatActivity {
         }
 
         return real_rects;
+    }
+
+    public String mlbp_encode(Mat img, int size, boolean inv){
+        String img_mlbp = "";
+
+        for (int i=1; i<size-1; i++){
+            for (int j=1; j<size-1; j++){
+                String mlbp = "";
+                Mat roi = img.adjustROI(i-1, i+2, j-1, j+2);
+                double avg = mat_mean(roi);
+                int[] neigh_row_idx = {i-1, i-1, i-1, i,   i+1, i+1, i+1, i};
+                int[] neigh_col_idx = {j-1, j,   j+1, j+1, j+1, j,   j-1, j-1};
+
+                for (int k=0; k<neigh_col_idx.length; k++){
+                    if (!inv){
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] > avg){
+                            mlbp += "1";
+                        }else{
+                            mlbp += "0";
+                        }
+                    }else{
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] < avg){
+                            mlbp += "1";
+                        }else{
+                            mlbp += "0";
+                        }
+                    }
+                }
+
+                img_mlbp += mlbp;
+            }
+        }
+
+        return img_mlbp;
+    }
+
+    public double mat_mean(Mat img){
+        double sum = 0;
+        for (int i=0; i<img.rows(); i++){
+            for (int j=0; j<img.cols(); j++){
+                sum += img.get(i, j)[0]; // should be grayscale
+            }
+        }
+        return sum/(img.total());
     }
 }
