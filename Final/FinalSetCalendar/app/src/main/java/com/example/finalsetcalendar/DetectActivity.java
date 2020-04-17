@@ -10,12 +10,14 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
+import org.opencv.core.Range;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -54,8 +56,7 @@ public class DetectActivity extends AppCompatActivity {
         textImage = findViewById(R.id.textImageView);
         stepBtn = findViewById(R.id.stepBtn);
         resetBtn = findViewById(R.id.resetBtn);
-        // Initialization
-        reset();
+        reset();        // Initialization
 
         resetBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -70,28 +71,26 @@ public class DetectActivity extends AppCompatActivity {
                 stepFlag += 1;
                 // Step 1: extract MSER
                 if (stepFlag == 1) {
-                    Log.d("tag", "step" + stepFlag + ": extract MSER");
                     mser_detect();
-                    Log.d("tag", "number of MSER regions: " + rects.size());
+                    Log.d("tag", "step" + stepFlag + ": extract MSER => number of MSER regions: " + rects.size());
+                    Toast.makeText(DetectActivity.this, "MSER extracted", Toast.LENGTH_SHORT).show();
                 }
                 // Step 2: reduce MSER
                 else if (stepFlag == 2) {
-                    Log.d("tag", "step" + stepFlag + ": reduce MSER");
                     mser_reduce();
-                    Log.d("tag", "number of regions: " + rects.size());
-                    // DEBUG
-                    for (int i=0; i<rects.size(); i++) {
-                        Log.d("tag", "rect[" + i + "]: " + rects.get(i));
-                    }
-
+                    Log.d("tag", "step" + stepFlag + ": reduce MSER => number of regions: " + rects.size());
+                    Toast.makeText(DetectActivity.this, "MSER reduced", Toast.LENGTH_SHORT).show();
+//                    // DEBUG
+//                    for (int i=0; i<rects.size(); i++)
+//                        Log.d("tag", "rect[" + i + "]: " + rects.get(i));
                 }
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
-//                    Rect roi1 = rects.get(5);
-//                    encodeImg(roi1);
-                    mser_classify();
-
+                    Rect roi1 = rects.get(7);
+                    //Rect roi1 = rects.get(5);
+                    String mlbp= encodeImg(roi1);
+//                    mser_classify();
                 }
 
                 // Mat to Bitmap to Imageview
@@ -162,12 +161,8 @@ public class DetectActivity extends AppCompatActivity {
 
 
     public boolean cover(Rect rect1, Rect rect2){
-        if (rect1.x <= rect2.x && rect1.x+rect1.width >= rect2.x+rect2.width &&
-            rect1.y <= rect2.y && rect1.y+rect1.height >= rect2.y+rect2.height){
-            return true;
-        }else{
-            return false;
-        }
+        return rect1.x <= rect2.x && rect1.x + rect1.width >= rect2.x + rect2.width &&
+                rect1.y <= rect2.y && rect1.y + rect1.height >= rect2.y + rect2.height;
     }
 
     public boolean isMaximal(Rect rect, List<Rect> rects){
@@ -222,98 +217,78 @@ public class DetectActivity extends AppCompatActivity {
         // to see which rect is being encoded
         origMat.copyTo(rgbaMat);
         Imgproc.rectangle(rgbaMat, roi.tl(), roi.br(), new Scalar(0, 255, 0), 2);
+//        // FIXME: why??
+//        Utils.matToBitmap(rgbaMat, bmp);
+//        textImage.setImageBitmap(bmp);
 
-        Utils.matToBitmap(rgbaMat, bmp);
-        textImage.setImageBitmap(bmp);
 
-        Mat roiMat = bwMat.submat(roi);
-
-        // first resize
-        Mat resizeMat;
-        Mat tmp = new Mat();
+        ////////////////////// first resize ////////////////////////////////////////////
         int size = 32;
-
+        Mat resizeMat;  // 32x32
+        Mat tmp = new Mat();    // resized roi
         int h = roi.height;
         int w = roi.width;
-        Log.d("tag", "roi.width " + roi.width + "roi.height " + roi.height);
+        //Log.d("tag", "roi.width " + roi.width + "roi.height " + roi.height);
+
+        // NOTE: FIXED: rotation padded with BLACK
+        // Take a square to contain the ROI, so that it can be rotated smoothly
+        int sqside = Math.max(h, w);
+        Rect sq = new Rect(roi.x, roi.y, sqside, sqside);  // a larger square
+        Mat roiMat = bwMat.submat(sq);
+        resize(roiMat, tmp, new Size( size, size), 0, 0, INTER_AREA); // tmp.size() = 32x32
+
+        float scale = (float)size / (float)sqside;
+        Mat rotM = Imgproc.getRotationMatrix2D(new Point(size/2, size/2), 270, 1);  // rotate the 32x32 Mat
 
 
         //******** BE CAREFUL, THE IMAGE IS ROTATED CW 90 DEGREES, NEED TO ROTATE BACK *******//
 
         // if it is tall and thin, ACTUALLY it is short and fat
-        if (h > w) {
-            float scale = (float)size / (float)h;
-//            Mat tmp = new Mat();
-            Size scaleSize = new Size( (int) (w*scale+0.5), (int) (h*scale+0.5) );
-            //Log.d("tag", "scaleSize " + scaleSize);
-            resize(roiMat, tmp, scaleSize, 0, 0, INTER_AREA);
-
-            // FIXME: rotation padded with BLACK
-            Mat rottmpM = Imgproc.getRotationMatrix2D(new Point(tmp.cols()/2, tmp.rows()/2), 270, 1);
-            Imgproc.warpAffine(tmp, tmp, rottmpM, new Size(tmp.rows(), tmp.cols()));
-
+        if (h > w) {    // sqside = h
+            Imgproc.warpAffine(tmp, tmp, rotM, tmp.size());
+            int newR = (int) (w*scale+0.5);
+            tmp = tmp.rowRange(new Range(0, newR ));
             int margin = size/2 - tmp.rows()/2;
-
             resizeMat = new Mat(margin, size, tmp.type(), new Scalar(255));
-            Mat row255 = new Mat(1, size, tmp.type(), new Scalar(255));
-
-            for (int y=0; y < tmp.rows(); y++) {
-                resizeMat.push_back(tmp.row(y));
-            }
-            for (int i=margin+tmp.rows(); i < size; i++) {
-                resizeMat.push_back(row255);
-            }
-            //Imgproc.warpAffine(resizeMat, resizeMat, rotM, rotSize);
+            resizeMat.push_back(tmp);
+            Mat whiterows = new Mat(size-margin-tmp.rows(), size, tmp.type(), new Scalar(255));
+            resizeMat.push_back(whiterows);
         }
-
         // if it is short and fat: h <= w, ACTUALLY it is tall and thin
-        else {
-            float scale = (float)size / (float)w;
-//            Mat tmp = new Mat();
-            Size scaleSize = new Size( (int) (w*scale+0.5), (int) (h*scale+0.5) );
-            resize(roiMat, tmp, scaleSize, 0, 0, INTER_AREA);
-
+        else {          // sqside = w
+            int newR = (int) (h*scale+0.5);
+            tmp = tmp.rowRange(new Range(0, newR ));
             int margin = size/2 - tmp.rows()/2;
-
             resizeMat = new Mat(margin, size, tmp.type(), new Scalar(255));
-            Mat row255 = new Mat(1, size, tmp.type(), new Scalar(255));
-            for (int y=0; y < tmp.rows(); y++) {
-                resizeMat.push_back(tmp.row(y));
-            }
-            for (int i=margin+tmp.rows(); i < size; i++) {
-                resizeMat.push_back(row255);
-            }
-            Point rotCenter = new Point(size/2, size/2);
-            Mat rotM = Imgproc.getRotationMatrix2D(rotCenter, 270, 1);
-            Size rotSize = new Size(size, size);
-            Imgproc.warpAffine(resizeMat, resizeMat, rotM, rotSize);
-
+            resizeMat.push_back(tmp);
+            Mat whiterows = new Mat(size-margin-tmp.rows(), size, tmp.type(), new Scalar(255));
+            resizeMat.push_back(whiterows);
+            Imgproc.warpAffine(resizeMat, resizeMat, rotM, resizeMat.size());
         }
 
-        // show the resized roi
-//        tmp = resizeMat;
-//        byte[] resizeData = new byte[(int) (tmp.total()*tmp.channels())];
-//        tmp.get(0, 0, resizeData);
-//        byte[] bwData = new byte[(int) (bwMat.total()*bwMat.channels()) ];
-//        for (int y = 0; y < bwMat.rows(); y++) {
-//            for (int x = 0; x < bwMat.cols(); x++) {
-//                for (int c = 0; c < bwMat.channels(); c++) {
-//                    // pad white pixels outside
-//                    if ( (x >= tmp.cols()) || y >= tmp.rows() ) {
-//                        bwData[(y * bwMat.cols() + x) * bwMat.channels() + c] = (byte)128;
-//                    } else {
-//                        byte pixelValue = resizeData[( y * tmp.cols() + x ) * tmp.channels() + c];
-//                        bwData[(y * bwMat.cols() + x) * bwMat.channels() + c] = pixelValue;
-//                    }
-//                }
-//            }
-//        }
-//        bwMat.put(0, 0, bwData);
-//        rgbaMat = bwMat;
+/*        // show the resized roi
+        byte[] resizeData = new byte[(int) (resizeMat.total()*resizeMat.channels())];
+        resizeMat.get(0, 0, resizeData);
+        byte[] bwData = new byte[(int) (bwMat.total()*bwMat.channels()) ];
+        for (int y = 0; y < bwMat.rows(); y++) {
+            for (int x = 0; x < bwMat.cols(); x++) {
+                for (int c = 0; c < bwMat.channels(); c++) {
+                    // pad white pixels outside
+                    if ( (x >= resizeMat.cols()) || y >= resizeMat.rows() ) {
+                        bwData[(y * bwMat.cols() + x) * bwMat.channels() + c] = (byte)128;
+                    } else {
+                        byte pixelValue = resizeData[( y * resizeMat.cols() + x ) * resizeMat.channels() + c];
+                        bwData[(y * bwMat.cols() + x) * bwMat.channels() + c] = pixelValue;
+                    }
+                }
+            }
+        }
+        bwMat.put(0, 0, bwData);
+        rgbaMat = bwMat;
+ */
 
-
-        // then encode
-
+        ////////////////////// then encode ////////////////////////////////////////////
+        //String mlbp = "";
         String mlbp = mlbp_encode(resizeMat, size, true);
         Log.d("tag", mlbp);
         return mlbp;
