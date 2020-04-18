@@ -38,8 +38,6 @@ public class DetectActivity extends AppCompatActivity {
     Bitmap bmp;
     int height, width;
     int stepFlag;
-    double maxsim = -1.0;
-    String letter = "";
 
     Mat origMat, rgbaMat, grayMat, bwMat;
     List<Rect> rects, strong_text, weak_text, non_text;
@@ -188,18 +186,20 @@ public class DetectActivity extends AppCompatActivity {
         double EDGE_MAX = (double) (Math.max(height,width)*0.8);
         // region area
         double AREA_MIN = (double) (height*width/2000.0);
-        double AREA_MAX = (double) (height*width*0.2);
+        double AREA_MAX = (double) (height*width*0.1);
         // aspect ratio
-        double AR_MIN = 0.3;
-        double AR_MAX = 2.5;
+        double AR_MIN = 0.2;
+        double AR_MAX = 3;
 
         for (int i=0; i<regions.size(); i++){
+            int sqsize = Math.max(regions.get(i).width, regions.get(i).height);
             if (Math.min(regions.get(i).width, regions.get(i).height) < EDGE_MAX &&
                     Math.max(regions.get(i).width, regions.get(i).height) > EDGE_MIN &&
                     regions.get(i).width*regions.get(i).height < AREA_MAX &&
                     regions.get(i).width*regions.get(i).height > AREA_MIN &&
                     ((double)regions.get(i).width) / ((double)regions.get(i).height) < AR_MAX &&
-                    ((double)regions.get(i).width) / ((double)regions.get(i).height) > AR_MIN
+                    ((double)regions.get(i).width) / ((double)regions.get(i).height) > AR_MIN &&
+                    regions.get(i).x + sqsize < grayMat.cols() && regions.get(i).x + sqsize < grayMat.rows()
             ){
                 if (!rects.contains(regions.get(i))){
                     rects.add(regions.get(i));
@@ -240,6 +240,7 @@ public class DetectActivity extends AppCompatActivity {
         int sqside = Math.max(h, w);
         Rect sq = new Rect(roi.x, roi.y, sqside, sqside);  // a larger square
         Mat roiMat = bwMat.submat(sq);
+        //Log.d("tag", "sq: " + sq);
         resize(roiMat, tmp, new Size( size, size), 0, 0, INTER_AREA); // tmp.size() = 32x32
 
         float scale = (float)size / (float)sqside;
@@ -348,7 +349,7 @@ public class DetectActivity extends AppCompatActivity {
             CannyClassifier myCanny = new CannyClassifier(mlbp);
 
             Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
-            Log.d("tag", "letter: " + myCanny.letter + "sim: " + myCanny.sim + "class: " + myCanny.theclass);
+            Log.d("tag", "letter: " + myCanny.letter + "; sim: " + myCanny.sim + "; class: " + myCanny.theclass);
 
             if (myCanny.theclass == myCanny.STRONG) {
                 strong_text.add(rects.get(i));
@@ -368,6 +369,8 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
         for (int i=0; i<weak_text.size(); i++)
             Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
+        for (int i=0; i<non_text.size(); i++)
+            Imgproc.rectangle(rgbaMat, non_text.get(i).tl(), non_text.get(i).br(), new Scalar(0, 0, 255), 2);
 
     }
 

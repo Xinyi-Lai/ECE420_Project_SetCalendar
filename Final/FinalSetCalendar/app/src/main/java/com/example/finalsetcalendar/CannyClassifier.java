@@ -112,6 +112,10 @@ public class CannyClassifier {
 
         //TODO: For testing
         List<String> exempt_list = new ArrayList<String>();
+        exempt_list.add("i");
+        exempt_list.add("j");
+        exempt_list.add("l");
+        exempt_list.add("I");
 
         double maxsim = -1.0;
         String classify_letter = "";
@@ -136,7 +140,7 @@ public class CannyClassifier {
 
         //TODO: tune parameters
         double th1 = 0.75;
-        double th2 = 0.45;
+        double th2 = 0.55;
 
         double tth1 = 0.88;
         double tth2 = 0.60;
