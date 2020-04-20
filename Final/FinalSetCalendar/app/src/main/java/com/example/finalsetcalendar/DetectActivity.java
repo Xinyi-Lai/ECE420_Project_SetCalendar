@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.opencv.features2d.MSER.create;
 import static org.opencv.imgproc.Imgproc.INTER_AREA;
+import static org.opencv.imgproc.Imgproc.PROJ_SPHERICAL_EQRECT;
 import static org.opencv.imgproc.Imgproc.resize;
 
 
@@ -40,7 +41,7 @@ public class DetectActivity extends AppCompatActivity {
     int stepFlag;
 
     Mat origMat, rgbaMat, grayMat, bwMat;
-    List<Rect> rects, strong_text, weak_text, non_text;
+    List<Rect> rects, strong_text, weak_text, non_text, text;
     Dictionary<String, String> mlbp_dict;
 
     @Override
@@ -93,6 +94,12 @@ public class DetectActivity extends AppCompatActivity {
                     //Log.d("tag", "letter: " + myCanny.letter);
                     //Log.d("tag", "sim: " + myCanny.sim);
                     //Log.d("tag", "class: " + myCanny.theclass);
+
+                //hysteresis
+                } else if(stepFlag == 4) {
+                    Log.d("tag", "step" + stepFlag + ": Hysteresis");
+                    Toast.makeText(DetectActivity.this, "Hysteresis...", Toast.LENGTH_SHORT).show();
+                    hysteresis_tracking();
                 }
 
                 // Mat to Bitmap to Imageview
@@ -339,9 +346,9 @@ public class DetectActivity extends AppCompatActivity {
 
     public void cannyClassify (){
 
-        strong_text = new ArrayList<Rect>();
-        weak_text = new ArrayList<Rect>();
-        non_text = new ArrayList<Rect>();
+        //strong_text = new ArrayList<Rect>();
+        //weak_text = new ArrayList<Rect>();
+        //non_text = new ArrayList<Rect>();
 
         for (int i=0; i<rects.size(); i++){
 
@@ -371,6 +378,91 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
         for (int i=0; i<non_text.size(); i++)
             Imgproc.rectangle(rgbaMat, non_text.get(i).tl(), non_text.get(i).br(), new Scalar(0, 0, 255), 2);
+
+    }
+    /*
+        helper for hysteresis tracking
+
+     */
+    public boolean close(Rect a, Rect b) {
+        double align_ratio = .2;
+        double h_space_ratio = .85;
+        double v_space_ratio = .05;
+        //dimensions of a
+
+        int xa = a.y;
+        int ya = a.x+a.width;
+
+        int wa = a.height;
+        int ha = a.width;
+
+        //dimensions of b
+        int xb = b.y;
+        int yb = b.x+b.width;
+
+        int wb = b.height;
+        int hb = b.width;
+
+
+//        int xa = a.x;
+//        int ya = a.y+a.height;
+//
+//        int wa = a.width;
+//        int ha = a.height;
+//
+//        //dimensions of b
+//        int xb = b.x;
+//        int yb = b.y+b.height;
+//
+//        int wb = b.width;
+//        int hb = b.height;
+
+        if(yb <= ya + ha - hb*align_ratio && yb + hb >= ya + hb*align_ratio) {
+
+            if((xb <= xa + wa + wb*h_space_ratio && xb >= xa + wa - wb*h_space_ratio ) ||
+                    (xb + wb >= xa - wb*h_space_ratio && xb + wb <= xa + wb*h_space_ratio)) {
+                return true;
+            }
+        }
+        if(xb <= xa + wa + wb*align_ratio && xb + wb >= xa - wb*align_ratio) {
+
+            if((yb <= ya + ha + hb*v_space_ratio && yb >= ya + ha - hb*v_space_ratio ) ||
+                    (yb + hb >= ya - hb*v_space_ratio && yb + hb <= ya + hb*v_space_ratio)) {
+                return true;
+            }
+        }
+
+        return false;
+        
+    }
+    /*
+        compare weak and strong text
+     */
+    public void hysteresis_tracking() {
+
+        text = new ArrayList<Rect>();
+
+        while(!strong_text.isEmpty()) {
+            for(int i = 0; i < weak_text.size(); i++) {
+                if(!text.contains(weak_text.get(i)) && close(weak_text.get(i),strong_text.get(0))) {
+                    text.add(weak_text.get(i));
+                    strong_text.add(weak_text.get(i));
+                }
+            }
+            strong_text.remove(0);
+        }
+
+        Log.d("tag", "text size" + text.size());
+
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<text.size(); i++)
+            Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
+
+//        origMat.copyTo(rgbaMat);
+//        for (int i=0; i<strong_text.size(); i++)
+//            Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
+//        for (int i=0; i<weak_text.size(); i++)
+//            Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
 
     }
 
