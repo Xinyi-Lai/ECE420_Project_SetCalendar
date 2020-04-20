@@ -23,6 +23,8 @@ import org.opencv.features2d.MSER;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Dictionary;
 import java.util.List;
 
@@ -100,6 +102,12 @@ public class DetectActivity extends AppCompatActivity {
                     Log.d("tag", "step" + stepFlag + ": Hysteresis");
                     Toast.makeText(DetectActivity.this, "Hysteresis...", Toast.LENGTH_SHORT).show();
                     hysteresis_tracking();
+
+                    //goruping
+                } else if(stepFlag == 5) {
+                    Log.d("tag", "step" + stepFlag + ": Grouping");
+                    Toast.makeText(DetectActivity.this, "Grouping...", Toast.LENGTH_SHORT).show();
+                    grouping();
                 }
 
                 // Mat to Bitmap to Imageview
@@ -346,9 +354,9 @@ public class DetectActivity extends AppCompatActivity {
 
     public void cannyClassify (){
 
-        //strong_text = new ArrayList<Rect>();
-        //weak_text = new ArrayList<Rect>();
-        //non_text = new ArrayList<Rect>();
+        strong_text = new ArrayList<Rect>();
+        weak_text = new ArrayList<Rect>();
+        non_text = new ArrayList<Rect>();
 
         for (int i=0; i<rects.size(); i++){
 
@@ -452,7 +460,7 @@ public class DetectActivity extends AppCompatActivity {
             strong_text.remove(0);
         }
 
-        Log.d("tag", "text size" + text.size());
+        Log.d("tag", "text size: " + text.size());
 
         origMat.copyTo(rgbaMat);
         for (int i=0; i<text.size(); i++)
@@ -465,6 +473,95 @@ public class DetectActivity extends AppCompatActivity {
 //            Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
 
     }
+
+    public int find_merge_idx(Rect a) {
+
+        for(int i = 0; i < text.size(); i++) {
+            if(text.get(i) != a && close(a,text.get(i))) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+
+    public void grouping() {
+
+        //sort text
+        Collections.sort(text, new Comparator<Rect>() {
+            @Override
+            public int compare(Rect o1, Rect o2) {
+                //sort by x//which is sorting by y of actual
+                if((o1.x +o1.width) < (o2.x+o2.width)) {
+                    //01 first
+                    return -1;
+                } else if((o1.x +o1.width) == (o2.x+o2.width)) {
+                    //equal y so sort by x
+                    if(o1.y < o2.y) {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                } else {
+                    //o2 first
+                    return 1;
+                }
+            }
+        });
+
+        //sorts the text by x first(which is y for actual flipped image)
+        for(int i = 0; i < text.size();i++) {
+            Log.d("tag", "sorted text: " + text.get(i));
+        }
+        //Log.d("tag", "space");
+        //Log.d("tag", "space");
+        int count = 0;
+
+        while(true) {
+            count++;
+            //Log.d("tag", "infinite loop 1");
+            //all possible merges
+            while(true) {
+                int merge_index = find_merge_idx(text.get(0));
+                if(merge_index == -1)
+                    break;
+
+                //merging rectangle (biggest bounding box so x or y doesnt matter)
+                int x = Math.min(text.get(0).x,text.get(merge_index).x);
+                int y = Math.min(text.get(0).y,text.get(merge_index).y);
+                int w = Math.max(text.get(0).width,text.get(merge_index).width);
+                int h = Math.max(text.get(0).height,text.get(merge_index).height);
+                text.set(0,new Rect(x, y, w, h));
+
+                //Log.d("tag", " prior to text size change: "+ text.size());
+                text.remove(merge_index);
+                //Log.d("tag", "text size change: "+ text.size());
+                //Log.d("tag", "infinite loop 2");
+            }
+            //move element to the end so we can compare the next element
+            //Rect temp = text.get(0);
+            text.add(text.get(0));
+            text.remove(0);
+            int stop = 1;
+            //Log.d("tag", "check for stop");
+            for(int i = 0; i < text.size();i++) {
+                if(find_merge_idx(text.get(i)) != -1) {
+                    stop = 0;
+                    break;
+                }
+            }
+            if(stop==1)
+                break;
+            //Log.d("tag", "stop failed, text size: " + text.size());
+        }
+        Log.d("tag", "final grouped text size: " + text.size());
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<text.size(); i++)
+            Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
+
+    }
+
 
 
 
