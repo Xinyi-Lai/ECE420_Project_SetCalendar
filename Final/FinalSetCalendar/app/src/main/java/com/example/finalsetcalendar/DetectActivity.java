@@ -399,14 +399,14 @@ public class DetectActivity extends AppCompatActivity {
         //dimensions of a
 
         int xa = a.y;
-        int ya = a.x+a.width;
+        int ya = width - (a.x+a.width);
 
         int wa = a.height;
         int ha = a.width;
 
         //dimensions of b
         int xb = b.y;
-        int yb = b.x+b.width;
+        int yb = width - (b.x+b.width);
 
         int wb = b.height;
         int hb = b.width;
@@ -498,7 +498,7 @@ public class DetectActivity extends AppCompatActivity {
                 //sort by x//which is sorting by y of actual
                 if((o1.x +o1.width) < (o2.x+o2.width)) {
                     //01 first
-                    return -1;
+                    return 1;
                 } else if((o1.x +o1.width) == (o2.x+o2.width)) {
                     //equal y so sort by x
                     if(o1.y < o2.y) {
@@ -508,7 +508,7 @@ public class DetectActivity extends AppCompatActivity {
                     }
                 } else {
                     //o2 first
-                    return 1;
+                    return -1;
                 }
             }
         });
