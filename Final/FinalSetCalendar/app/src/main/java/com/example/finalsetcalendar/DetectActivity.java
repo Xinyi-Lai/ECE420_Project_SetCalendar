@@ -23,11 +23,14 @@ import org.opencv.features2d.MSER;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Dictionary;
 import java.util.List;
 
 import static org.opencv.features2d.MSER.create;
 import static org.opencv.imgproc.Imgproc.INTER_AREA;
+import static org.opencv.imgproc.Imgproc.PROJ_SPHERICAL_EQRECT;
 import static org.opencv.imgproc.Imgproc.resize;
 
 
@@ -40,8 +43,7 @@ public class DetectActivity extends AppCompatActivity {
     int stepFlag;
 
     Mat origMat, rgbaMat, grayMat, bwMat;
-    List<Rect> rects, strong_text, weak_text, non_text;
-    Dictionary<String, String> mlbp_dict;
+    List<Rect> rects, strong_text, weak_text, non_text, text;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,6 +95,18 @@ public class DetectActivity extends AppCompatActivity {
                     //Log.d("tag", "letter: " + myCanny.letter);
                     //Log.d("tag", "sim: " + myCanny.sim);
                     //Log.d("tag", "class: " + myCanny.theclass);
+
+                //hysteresis
+                } else if(stepFlag == 4) {
+                    Log.d("tag", "step" + stepFlag + ": Hysteresis");
+                    Toast.makeText(DetectActivity.this, "Hysteresis...", Toast.LENGTH_SHORT).show();
+                    hysteresis_tracking();
+
+                    //goruping
+                } else if(stepFlag == 5) {
+                    Log.d("tag", "step" + stepFlag + ": Grouping");
+                    Toast.makeText(DetectActivity.this, "Grouping...", Toast.LENGTH_SHORT).show();
+                    grouping();
                 }
 
                 // Mat to Bitmap to Imageview
@@ -373,6 +387,237 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, non_text.get(i).tl(), non_text.get(i).br(), new Scalar(0, 0, 255), 2);
 
     }
+    /*
+        helper for hysteresis tracking
+
+     */
+    public boolean close(Rect a, Rect b) {
+        double align_ratio = .2;
+        double h_space_ratio = .75;
+        double v_space_ratio = .05;
+        //dimensions of a
+
+        int xa = height- (a.y+a.height);
+        int ya = a.x;
+
+        int wa = a.height;
+        int ha = a.width;
+
+        //dimensions of b
+        int xb = height - (b.y+b.height);
+        int yb = b.x;
+
+        int wb = b.height;
+        int hb = b.width;
+
+
+//        int xa = a.x;
+//        int ya = a.y;
+//
+//        int wa = a.width;
+//        int ha = a.height;
+//
+//        //dimensions of b
+//        int xb = b.x;
+//        int yb = b.y;
+//
+//        int wb = b.width;
+//        int hb = b.height;
+
+        if(yb <= ya + ha - hb*align_ratio && yb + hb >= ya + hb*align_ratio) {
+
+            if((xb <= xa + wa + wb*h_space_ratio && xb >= xa + wa - wb*h_space_ratio ) ||
+                    (xb + wb >= xa - wb*h_space_ratio && xb + wb <= xa + wb*h_space_ratio)) {
+                return true;
+            }
+        }
+        if(xb <= xa + wa + wb*align_ratio && xb + wb >= xa - wb*align_ratio) {
+
+            if((yb <= ya + ha + hb*v_space_ratio && yb >= ya + ha - hb*v_space_ratio ) ||
+                    (yb + hb >= ya - hb*v_space_ratio && yb + hb <= ya + hb*v_space_ratio)) {
+                return true;
+            }
+        }
+
+        return false;
+        
+    }
+    /*
+        compare weak and strong text
+     */
+    public void hysteresis_tracking() {
+
+        text = new ArrayList<Rect>();
+
+        // criteria for removing noisy strong text
+        int top_bound = (int) ((float)height / 8.0);
+        int bottom_bound = (int) ((float)height * 7.0 / 8.0);
+        int left_bound = (int) ((float)width / 8.0);
+        int right_bound = (int) ((float)width * 7.0 / 8.0);
+
+        for(int i = 0; i < strong_text.size(); i++) {
+            text.add(strong_text.get(i));
+        }
+        while(!strong_text.isEmpty()) {
+            for(int i = 0; i < weak_text.size(); i++) {
+                if(!text.contains(weak_text.get(i)) && close(weak_text.get(i),strong_text.get(0))) {
+                    text.add(weak_text.get(i));
+                    strong_text.add(weak_text.get(i));
+                }
+            }
+            strong_text.remove(0);
+        }
+
+        Log.d("tag", "text size: " + text.size());
+
+        for (int i=0; i<text.size(); i++){
+            // restrict the central part to be the valid text
+            if (text.get(i).tl().x < left_bound || text.get(i).tl().y < top_bound ||
+                text.get(i).br().x > right_bound || text.get(i).br().y > bottom_bound) {
+                text.remove(i);
+            }
+        }
+
+
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<text.size(); i++)
+            Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
+
+//        origMat.copyTo(rgbaMat);
+//        for (int i=0; i<strong_text.size(); i++)
+//            Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
+//        for (int i=0; i<weak_text.size(); i++)
+//            Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
+
+    }
+
+    public int find_merge_idx(Rect a) {
+
+        for(int i = 0; i < text.size(); i++) {
+            if(text.get(i) != a && close(a,text.get(i))) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+
+    public void grouping() {
+
+        //sort text
+        Collections.sort(text, new Comparator<Rect>() {
+            @Override
+            public int compare(Rect a, Rect b) {
+                //sort by x//which is sorting by y of actual
+                int xa = height- (a.y+a.height);
+                int ya = a.x;
+
+                int wa = a.height;
+                int ha = a.width;
+
+                //dimensions of b
+                int xb = height - (b.y+b.height);
+                int yb = b.x;
+
+                int wb = b.height;
+                int hb = b.width;
+//                int xa = a.x;
+//                int ya = a.y;
+//
+//                int wa = a.width;
+//                int ha = a.height;
+//
+//                //dimensions of b
+//                int xb = b.x;
+//                int yb = b.y;
+//
+//                int wb = b.width;
+//                int hb = b.height;
+
+                //sort by y
+                if(ya < yb) {
+
+                    return -1;
+                } else if(ya == yb) {
+                    //sort by x
+                    if(xa < xb) {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                } else {
+
+                    return 1;
+                }
+            }
+        });
+
+        //sorts the text by x first(which is y for actual flipped image)
+        for(int i = 0; i < text.size();i++) {
+            Log.d("tag", "sorted text: " + text.get(i));
+        }
+        //Log.d("tag", "space");
+        //Log.d("tag", "space");
+        int count = 0;
+
+        while(true) {
+            count++;
+            //Log.d("tag", "infinite loop 1");
+            //all possible merges
+            while(true) {
+                int merge_index = find_merge_idx(text.get(0));
+                if(merge_index == -1)
+                    break;
+
+                //merging rectangle
+
+                int x = Math.min(text.get(0).x,text.get(merge_index).x);
+                int y = Math.min(text.get(0).y,text.get(merge_index).y);
+                int w = Math.max(text.get(0).x + text.get(0).width,text.get(merge_index).x+ text.get(merge_index).width) - x;
+                int h = Math.max(text.get(0).y +text.get(0).height,text.get(merge_index).y+ text.get(merge_index).height) - y;
+
+                Log.d("tag", " initial index "+ text.get(0));
+                Log.d("tag", " merge index "+ text.get(merge_index));
+
+                Log.d("tag", " x "+ text.get(0).x);
+                Log.d("tag", " y "+ text.get(0).y);
+                Log.d("tag", " m_x "+ text.get(merge_index).x);
+                Log.d("tag", " m_y "+ text.get(merge_index).y);
+
+                Log.d("tag", " min_x "+ x);
+                Log.d("tag", " min_y "+ y);
+
+                text.set(0,new Rect(x,y,w,h));
+                Log.d("tag", " new rect "+ text.get(merge_index));
+                //Log.d("tag", " prior to text size change: "+ text.size());
+                text.remove(merge_index);
+                //Log.d("tag", "text size change: "+ text.size());
+                //Log.d("tag", "infinite loop 2");
+            }
+            //move element to the end so we can compare the next element
+            //Rect temp = text.get(0);
+            text.add(text.get(0));
+            text.remove(0);
+            int stop = 1;
+            //Log.d("tag", "check for stop");
+            for(int i = 0; i < text.size();i++) {
+                if(find_merge_idx(text.get(i)) != -1) {
+                    stop = 0;
+                    break;
+                }
+            }
+            if(stop==1)
+                break;
+            //Log.d("tag", "stop failed, text size: " + text.size());
+        }
+        Log.d("tag", "final grouped text size: " + text.size());
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<text.size(); i++)
+            Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
+
+    }
+
 
 
 
