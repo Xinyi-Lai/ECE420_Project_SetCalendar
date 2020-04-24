@@ -394,19 +394,19 @@ public class DetectActivity extends AppCompatActivity {
      */
     public boolean close(Rect a, Rect b) {
         double align_ratio = .2;
-        double h_space_ratio = .85;
+        double h_space_ratio = .75;
         double v_space_ratio = .05;
         //dimensions of a
 
-        int xa = a.y;
-        int ya = width - (a.x+a.width);
+        int xa = height- (a.y+a.height);
+        int ya = a.x;
 
         int wa = a.height;
         int ha = a.width;
 
         //dimensions of b
-        int xb = b.y;
-        int yb = width - (b.x+b.width);
+        int xb = height - (b.y+b.height);
+        int yb = b.x;
 
         int wb = b.height;
         int hb = b.width;
@@ -494,21 +494,35 @@ public class DetectActivity extends AppCompatActivity {
         //sort text
         Collections.sort(text, new Comparator<Rect>() {
             @Override
-            public int compare(Rect o1, Rect o2) {
+            public int compare(Rect a, Rect b) {
                 //sort by x//which is sorting by y of actual
-                if((o1.x +o1.width) < (o2.x+o2.width)) {
-                    //01 first
-                    return 1;
-                } else if((o1.x +o1.width) == (o2.x+o2.width)) {
-                    //equal y so sort by x
-                    if(o1.y < o2.y) {
+                int xa = height- (a.y+a.height);
+                int ya = a.x;
+
+                int wa = a.height;
+                int ha = a.width;
+
+                //dimensions of b
+                int xb = height - (b.y+b.height);
+                int yb = b.x;
+
+                int wb = b.height;
+                int hb = b.width;
+
+                //sort by y
+                if(ya < yb) {
+
+                    return -1;
+                } else if(ya == yb) {
+                    //sort by x
+                    if(xa < xb) {
                         return -1;
                     } else {
                         return 1;
                     }
                 } else {
-                    //o2 first
-                    return -1;
+
+                    return 1;
                 }
             }
         });
@@ -535,7 +549,7 @@ public class DetectActivity extends AppCompatActivity {
                 int y = Math.min(text.get(0).y,text.get(merge_index).y);
                 int w = Math.max(text.get(0).width,text.get(merge_index).width);
                 int h = Math.max(text.get(0).height,text.get(merge_index).height);
-                text.set(0,new Rect(x, y, w, h));
+                text.set(0,new Rect(x,y,w,h));
 
                 //Log.d("tag", " prior to text size change: "+ text.size());
                 text.remove(merge_index);
