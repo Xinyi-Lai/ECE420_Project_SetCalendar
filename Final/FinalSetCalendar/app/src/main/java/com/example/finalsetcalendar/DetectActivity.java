@@ -450,6 +450,9 @@ public class DetectActivity extends AppCompatActivity {
 
         text = new ArrayList<Rect>();
 
+        for(int i = 0; i < strong_text.size(); i++) {
+            text.add(strong_text.get(i));
+        }
         while(!strong_text.isEmpty()) {
             for(int i = 0; i < weak_text.size(); i++) {
                 if(!text.contains(weak_text.get(i)) && close(weak_text.get(i),strong_text.get(0))) {
