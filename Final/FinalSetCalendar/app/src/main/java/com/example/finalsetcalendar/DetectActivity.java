@@ -448,6 +448,7 @@ public class DetectActivity extends AppCompatActivity {
     public void hysteresis_tracking() {
 
         text = new ArrayList<Rect>();
+        List<Rect> temp = new ArrayList<Rect>();
 
         // criteria for removing noisy strong text
         int top_bound = (int) ((float)height / 8.0);
@@ -456,25 +457,25 @@ public class DetectActivity extends AppCompatActivity {
         int right_bound = (int) ((float)width * 7.0 / 8.0);
 
         for(int i = 0; i < strong_text.size(); i++) {
-            text.add(strong_text.get(i));
+            temp.add(strong_text.get(i));
         }
         while(!strong_text.isEmpty()) {
             for(int i = 0; i < weak_text.size(); i++) {
-                if(!text.contains(weak_text.get(i)) && close(weak_text.get(i),strong_text.get(0))) {
-                    text.add(weak_text.get(i));
+                if(!temp.contains(weak_text.get(i)) && close(weak_text.get(i),strong_text.get(0))) {
+                    temp.add(weak_text.get(i));
                     strong_text.add(weak_text.get(i));
                 }
             }
             strong_text.remove(0);
         }
 
-        Log.d("tag", "text size: " + text.size());
+        Log.d("tag", "text size: " + temp.size());
 
-        for (int i=0; i<text.size(); i++){
+        for (int i=0; i<temp.size(); i++){
             // restrict the central part to be the valid text
-            if (text.get(i).tl().x < left_bound || text.get(i).tl().y < top_bound ||
-                text.get(i).br().x > right_bound || text.get(i).br().y > bottom_bound) {
-                text.remove(i);
+            if (temp.get(i).tl().x >= left_bound  && temp.get(i).tl().y >= top_bound &&
+                temp.get(i).br().x <= right_bound && temp.get(i).br().y <= bottom_bound) {
+                text.add(temp.get(i));
             }
         }
 
