@@ -398,32 +398,32 @@ public class DetectActivity extends AppCompatActivity {
         double v_space_ratio = .05;
         //dimensions of a
 
-//        int xa = height- (a.y+a.height);
-//        int ya = a.x;
-//
-//        int wa = a.height;
-//        int ha = a.width;
-//
-//        //dimensions of b
-//        int xb = height - (b.y+b.height);
-//        int yb = b.x;
-//
-//        int wb = b.height;
-//        int hb = b.width;
+        int xa = height- (a.y+a.height);
+        int ya = a.x;
 
-
-        int xa = a.x;
-        int ya = a.y;
-
-        int wa = a.width;
-        int ha = a.height;
+        int wa = a.height;
+        int ha = a.width;
 
         //dimensions of b
-        int xb = b.x;
-        int yb = b.y;
+        int xb = height - (b.y+b.height);
+        int yb = b.x;
 
-        int wb = b.width;
-        int hb = b.height;
+        int wb = b.height;
+        int hb = b.width;
+
+
+//        int xa = a.x;
+//        int ya = a.y;
+//
+//        int wa = a.width;
+//        int ha = a.height;
+//
+//        //dimensions of b
+//        int xb = b.x;
+//        int yb = b.y;
+//
+//        int wb = b.width;
+//        int hb = b.height;
 
         if(yb <= ya + ha - hb*align_ratio && yb + hb >= ya + hb*align_ratio) {
 
@@ -496,30 +496,30 @@ public class DetectActivity extends AppCompatActivity {
             @Override
             public int compare(Rect a, Rect b) {
                 //sort by x//which is sorting by y of actual
-//                int xa = height- (a.y+a.height);
-//                int ya = a.x;
-//
-//                int wa = a.height;
-//                int ha = a.width;
-//
-//                //dimensions of b
-//                int xb = height - (b.y+b.height);
-//                int yb = b.x;
-//
-//                int wb = b.height;
-//                int hb = b.width;
-                int xa = a.x;
-                int ya = a.y;
+                int xa = height- (a.y+a.height);
+                int ya = a.x;
 
-                int wa = a.width;
-                int ha = a.height;
+                int wa = a.height;
+                int ha = a.width;
 
                 //dimensions of b
-                int xb = b.x;
-                int yb = b.y;
+                int xb = height - (b.y+b.height);
+                int yb = b.x;
 
-                int wb = b.width;
-                int hb = b.height;
+                int wb = b.height;
+                int hb = b.width;
+//                int xa = a.x;
+//                int ya = a.y;
+//
+//                int wa = a.width;
+//                int ha = a.height;
+//
+//                //dimensions of b
+//                int xb = b.x;
+//                int yb = b.y;
+//
+//                int wb = b.width;
+//                int hb = b.height;
 
                 //sort by y
                 if(ya < yb) {
