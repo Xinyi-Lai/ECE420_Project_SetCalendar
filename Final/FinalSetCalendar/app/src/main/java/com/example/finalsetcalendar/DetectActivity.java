@@ -44,7 +44,6 @@ public class DetectActivity extends AppCompatActivity {
 
     Mat origMat, rgbaMat, grayMat, bwMat;
     List<Rect> rects, strong_text, weak_text, non_text, text;
-    Dictionary<String, String> mlbp_dict;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -450,6 +449,12 @@ public class DetectActivity extends AppCompatActivity {
 
         text = new ArrayList<Rect>();
 
+        // criteria for removing noisy strong text
+        int top_bound = (int) ((float)height / 8.0);
+        int bottom_bound = (int) ((float)height * 7.0 / 8.0);
+        int left_bound = (int) ((float)width / 8.0);
+        int right_bound = (int) ((float)width * 7.0 / 8.0);
+
         for(int i = 0; i < strong_text.size(); i++) {
             text.add(strong_text.get(i));
         }
@@ -464,6 +469,15 @@ public class DetectActivity extends AppCompatActivity {
         }
 
         Log.d("tag", "text size: " + text.size());
+
+        for (int i=0; i<text.size(); i++){
+            // restrict the central part to be the valid text
+            if (text.get(i).tl().x < left_bound || text.get(i).tl().y < top_bound ||
+                text.get(i).br().x > right_bound || text.get(i).br().y > bottom_bound) {
+                text.remove(i);
+            }
+        }
+
 
         origMat.copyTo(rgbaMat);
         for (int i=0; i<text.size(); i++)
