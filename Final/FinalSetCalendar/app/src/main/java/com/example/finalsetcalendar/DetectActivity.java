@@ -394,7 +394,7 @@ public class DetectActivity extends AppCompatActivity {
      */
     public boolean close(Rect a, Rect b) {
         double align_ratio = .2;
-        double h_space_ratio = .75;
+        double h_space_ratio = .85;
         double v_space_ratio = .05;
         //dimensions of a
 
@@ -544,13 +544,26 @@ public class DetectActivity extends AppCompatActivity {
                 if(merge_index == -1)
                     break;
 
-                //merging rectangle (biggest bounding box so x or y doesnt matter)
+                //merging rectangle
+
                 int x = Math.min(text.get(0).x,text.get(merge_index).x);
                 int y = Math.min(text.get(0).y,text.get(merge_index).y);
-                int w = Math.max(text.get(0).width,text.get(merge_index).width);
-                int h = Math.max(text.get(0).height,text.get(merge_index).height);
-                text.set(0,new Rect(x,y,w,h));
+                int w = Math.max(text.get(0).x + text.get(0).width,text.get(merge_index).x+ text.get(merge_index).width) - x;
+                int h = Math.max(text.get(0).y +text.get(0).height,text.get(merge_index).y+ text.get(merge_index).height) - y;
 
+                Log.d("tag", " initial index "+ text.get(0));
+                Log.d("tag", " merge index "+ text.get(merge_index));
+
+                Log.d("tag", " x "+ text.get(0).x);
+                Log.d("tag", " y "+ text.get(0).y);
+                Log.d("tag", " m_x "+ text.get(merge_index).x);
+                Log.d("tag", " m_y "+ text.get(merge_index).y);
+
+                Log.d("tag", " min_x "+ x);
+                Log.d("tag", " min_y "+ y);
+
+                text.set(0,new Rect(x,y,w,h));
+                Log.d("tag", " new rect "+ text.get(merge_index));
                 //Log.d("tag", " prior to text size change: "+ text.size());
                 text.remove(merge_index);
                 //Log.d("tag", "text size change: "+ text.size());
