@@ -2,6 +2,7 @@ package com.example.finalsetcalendar;
 
 import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -10,8 +11,13 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.googlecode.tesseract.android.TessBaseAPI;
+
 import org.opencv.android.Utils;
+import org.opencv.core.CvType;
+import org.opencv.core.KeyPoint;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
@@ -19,9 +25,15 @@ import org.opencv.core.Range;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
+import org.opencv.features2d.FeatureDetector;
 import org.opencv.features2d.MSER;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -41,9 +53,16 @@ public class DetectActivity extends AppCompatActivity {
     Bitmap bmp;
     int height, width;
     int stepFlag;
+    String exact_text; // used to store the exact text extracted by OCR
 
     Mat origMat, rgbaMat, grayMat, bwMat;
     List<Rect> rects, strong_text, weak_text, non_text, text;
+
+    //four variables created for OCR
+    private static final String TAG = DetectActivity.class.getSimpleName(); //I don't know what this is for, maybe simply equivalent to "tag"
+    private static final String DATA_PATH = Environment.getRootDirectory().toString() + "/Tess"; //this one is vital, mainly causing the current problem
+    private static final String TESS_DATA = "/tessdata"; //a subfolder mandatory for OCR, where the eng.traineddata is stored
+    private TessBaseAPI tessBaseAPI; //an instance for the TessBaseAPI to implement OCR
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,7 +126,25 @@ public class DetectActivity extends AppCompatActivity {
                     Log.d("tag", "step" + stepFlag + ": Grouping");
                     Toast.makeText(DetectActivity.this, "Grouping...", Toast.LENGTH_SHORT).show();
                     grouping();
+
+                    //extracting text
+                    //this if block is for extracting text by OCR
+                } else if(stepFlag == 6) {
+                    Log.d("tag", "step" + stepFlag + ": Extracting text");
+                    Toast.makeText(DetectActivity.this, "Extracting text...", Toast.LENGTH_SHORT).show();
+                    //store eng.traineddata in tablet, but it's not working currently due to some magic
+                    //it seems that it cannot store eng.traineddata in tablet because of the android version
+                    //this function should work for android 6.0 or below directly, but the android in tablet is 7.0 quq
+                    //for android that is above 6.0, a permission is needed
+                    //here is the link I find https://www.jianshu.com/p/cc9ae05423a8, but it's in Chinese
+                    //I don't have time to try this out
+                    //I think if we can store eng.traineddata in tablet, we are almost there
+                    prepareTessData();
+                    origMat.copyTo(rgbaMat);
+                    detectText(rgbaMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
+                    Log.d(TAG, exact_text);
                 }
+
 
                 // Mat to Bitmap to Imageview
                 Utils.matToBitmap(rgbaMat, bmp);
@@ -619,7 +656,188 @@ public class DetectActivity extends AppCompatActivity {
 
     }
 
+    //this is the function that tries to store eng.traineddata in tablet
+    //the commented part is from https://www.youtube.com/watch?v=_h1SyNZ0pG4
+    //this guy also has a github
+    //https://github.com/pethoalpar/OpenCvTextAreaDetector, this link is where you can start to implement the OCR
+    //https://github.com/pethoalpar/AndroidTessTwoOCR, this link should be where you end up with after implementing the OCR from the right above link
+    //
+    //the uncommented part is from https://www.jianshu.com/p/cc9ae05423a8
+    //they are basically trying to do the same thing, i.e. storing eng.traineddata in tablet where TessBaseAPI.init() can find
+    //currently, it seems that I cannot store eng.traineddata in tablet or TessBaseAPI.init() cannot find it
+    private void prepareTessData(){
+//        try {
+//            File dir = new File(DATA_PATH+TESS_DATA);
+//            if (!dir.exists()){
+//                dir.mkdir();
+//                }
+//            String fileList[] = getAssets().list("");
+//            for (String fileName : fileList){
+//                String pathToDataFile = DATA_PATH + TESS_DATA + "/" + fileName;
+//                Log.d(TAG, pathToDataFile);
+//                if (!(new File(pathToDataFile)).exists()){
+//                    InputStream is = getAssets().open(fileName);
+//                    OutputStream os = new FileOutputStream(pathToDataFile);
+//                    byte [] buff = new byte[1024];
+//                    int len;
+//                    while ((len = is.read(buff)) > 0){
+//                        os.write(buff, 0, len);
+//                    }
+//                    is.close();
+//                    os.close();
+//                }
+//        } catch (IOException e) {
+//            Log.w(TAG, e.getMessage());
+//        }
+            String path = DATA_PATH + TESS_DATA + "/eng.traineddata";
+            String name = "eng.traineddata";
 
+            Log.d(TAG, path);
+            //if exist, delete it
+            File f = new File(path);
+            if (f.exists()){
+                f.delete();
+            }
+            if (!f.exists()){
+                File p = new File(f.getParent());
+                if (!p.exists()){ //make the directory
+                    p.mkdir();
+                }
+                try {
+                    f.createNewFile(); //create eng.traineddata in tablet
+                } catch (IOException e){
+                    e.printStackTrace();
+                }
 
+                //write every thing in /assests/eng.traineddata to the eng.traindata in tablet
+                InputStream is = null;
+                OutputStream os = null;
+                try {
+                    is = this.getAssets().open(name);
+                    File file = new File(path);
+                    os = new FileOutputStream(file);
+                    byte[] bytes = new byte[2048];
+                    int len = 0;
+                    while ((len = is.read(bytes)) != -1){
+                        os.write(bytes, 0, len);
+                    }
+                    os.flush();
+                } catch (IOException e){
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        if (is != null){
+                            is.close();
+                        }
+                        if (os != null){
+                            os.close();
+                        }
+                    } catch (IOException e){
+                        e.printStackTrace();
+                    }
+                }
+            }
+            Log.d(TAG, "prepare tess data succeeds");
+    }
 
+    //this is the main function that extract the text using OCR
+    //I think this function should be fine
+    private void detectText(Mat mat){
+        Mat imageMat2 = new Mat();
+        Imgproc.cvtColor(mat, imageMat2, Imgproc.COLOR_RGB2GRAY);
+        Mat mRgba = mat;
+        Mat mGray = imageMat2;
+
+        Scalar CONTOUR_COLOR = new Scalar(1, 255, 128, 0);
+        MatOfKeyPoint keyPoint = new MatOfKeyPoint();
+        List<KeyPoint> listPoint = new ArrayList<>();
+        KeyPoint kPoint = new KeyPoint();
+        Mat mask = Mat.zeros(mGray.size(), CvType.CV_8UC1);
+        int rectanx1;
+        int rectany1;
+        int rectanx2;
+        int rectany2;
+
+        Scalar zeros = new Scalar(0,0,0);
+        List<MatOfPoint> contour2 = new ArrayList<>();
+        Mat kernel = new Mat(1, 50, CvType.CV_8UC1, Scalar.all(255));
+        Mat morByte = new Mat();
+        Mat hierarchy = new Mat();
+
+        Rect rectan3 = new Rect();
+        int imgSize = mRgba.height() * mRgba.width();
+
+        if(true){
+            FeatureDetector detector = FeatureDetector.create(FeatureDetector.MSER);
+            detector.detect(mGray, keyPoint);
+            listPoint = keyPoint.toList();
+            for(int ind = 0; ind < listPoint.size(); ++ind){
+                kPoint = listPoint.get(ind);
+                rectanx1 = (int ) (kPoint.pt.x - 0.5 * kPoint.size);
+                rectany1 = (int ) (kPoint.pt.y - 0.5 * kPoint.size);
+
+                rectanx2 = (int) (kPoint.size);
+                rectany2 = (int) (kPoint.size);
+                if(rectanx1 <= 0){
+                    rectanx1 = 1;
+                }
+                if(rectany1 <= 0){
+                    rectany1 = 1;
+                }
+                if((rectanx1 + rectanx2) > mGray.width()){
+                    rectanx2 = mGray.width() - rectanx1;
+                }
+                if((rectany1 + rectany2) > mGray.height()){
+                    rectany2 = mGray.height() - rectany1;
+                }
+                Rect rectant = new Rect(rectanx1, rectany1, rectanx2, rectany2);
+                Mat roi = new Mat(mask, rectant);
+                roi.setTo(CONTOUR_COLOR);
+            }
+            Imgproc.morphologyEx(mask, morByte, Imgproc.MORPH_DILATE, kernel);
+            Imgproc.findContours(morByte, contour2, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
+            Bitmap bmp = null;
+            StringBuilder sb = new StringBuilder();
+            for(int i = 0; i<contour2.size(); ++i){
+                rectan3 = Imgproc.boundingRect(contour2.get(i));
+                try {
+                    Mat croppedPart = mGray.submat(rectan3);
+                    bmp = Bitmap.createBitmap(croppedPart.width(), croppedPart.height(), Bitmap.Config.ARGB_8888);
+                    Utils.matToBitmap(croppedPart, bmp);
+                } catch (Exception e){
+                    Log.d(TAG, "Cropped part error");
+                }
+                if (bmp != null){
+                    String str = getTextWithTesseract (bmp); //this is where always get an error
+                    if (str != null){
+                        sb.append(str).append("/n");
+                    }
+                }
+            }
+            exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
+        }
+    }
+
+    //this function is a helper function for the detectText() function
+    private String getTextWithTesseract(Bitmap bitmap){
+        try {
+            tessBaseAPI = new TessBaseAPI();
+        } catch (Exception e){
+            Log.d(TAG, e.getMessage());
+        }
+         //this is where always get an error: Data path does not exist or something similar
+        //it cannot find the eng.traineddata we try to store in tablet
+        //really sad, I have tried here for half a day, still no progress
+        //but there seems to be many sources online we can refer to
+        //just try them out
+        //I think we can fix this problem
+        //we are almost there as long as we can store eng.traineddata in tablet
+        //I think it's the android version causing the problem, as is mentioned above
+        tessBaseAPI.init(DATA_PATH, "eng");
+        //*********************************************************************************
+        tessBaseAPI.setImage(bitmap);
+        String retStr = tessBaseAPI.getUTF8Text();
+        tessBaseAPI.end();
+        return retStr;
+    }
 }
