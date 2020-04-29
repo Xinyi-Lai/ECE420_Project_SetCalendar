@@ -1,6 +1,9 @@
 package com.example.finalsetcalendar;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -9,6 +12,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
@@ -37,12 +41,10 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Dictionary;
 import java.util.List;
 
 import static org.opencv.features2d.MSER.create;
 import static org.opencv.imgproc.Imgproc.INTER_AREA;
-import static org.opencv.imgproc.Imgproc.PROJ_SPHERICAL_EQRECT;
 import static org.opencv.imgproc.Imgproc.resize;
 
 
@@ -59,10 +61,15 @@ public class DetectActivity extends AppCompatActivity {
     List<Rect> rects, strong_text, weak_text, non_text, text;
 
     //four variables created for OCR
-    private static final String TAG = DetectActivity.class.getSimpleName(); //I don't know what this is for, maybe simply equivalent to "tag"
-    private static final String DATA_PATH = Environment.getRootDirectory().toString() + "/Tess"; //this one is vital, mainly causing the current problem
+    private static final String TAG = "TessTag"; // tag for Tess part
+    private  static final String DATA_PATH = Environment.getExternalStorageDirectory().toString() + "/";  // not "/Tess"
+//    private final String DATA_PATH = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) + "/"; //cant use the app files...
     private static final String TESS_DATA = "/tessdata"; //a subfolder mandatory for OCR, where the eng.traineddata is stored
     private TessBaseAPI tessBaseAPI; //an instance for the TessBaseAPI to implement OCR
+
+    //Permission request
+    private static final int PERMISSION_REQUEST_CODE=0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,6 +79,14 @@ public class DetectActivity extends AppCompatActivity {
         stepBtn = findViewById(R.id.stepBtn);
         resetBtn = findViewById(R.id.resetBtn);
         reset();        // Initialization
+
+        // Permission to write on the external storage
+        if (Build.VERSION.SDK_INT >= 23) {
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+                    checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE);
+            }
+        }
 
         resetBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -103,7 +118,7 @@ public class DetectActivity extends AppCompatActivity {
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
-                    Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
                     cannyClassify();
 
                     //String mlbp= encodeImg(rects.get(7));   //"M"
@@ -142,7 +157,7 @@ public class DetectActivity extends AppCompatActivity {
                     prepareTessData();
                     origMat.copyTo(rgbaMat);
                     detectText(rgbaMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
-                    Log.d(TAG, exact_text);
+                    Log.d("tag", exact_text);
                 }
 
 
@@ -200,7 +215,6 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, rects.get(i).tl(), rects.get(i).br(), new Scalar(0, 255, 0), 2);
         }
     }
-
 
     public void mser_reduce(){
         // reduce MSER regions
@@ -399,8 +413,8 @@ public class DetectActivity extends AppCompatActivity {
             String mlbp= encodeImg(rects.get(i));
             CannyClassifier myCanny = new CannyClassifier(mlbp);
 
-            Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
-            Log.d("tag", "letter: " + myCanny.letter + "; sim: " + myCanny.sim + "; class: " + myCanny.theclass);
+//            Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
+//            Log.d("tag", "letter: " + myCanny.letter + "; sim: " + myCanny.sim + "; class: " + myCanny.theclass);
 
             if (myCanny.theclass == myCanny.STRONG) {
                 strong_text.add(rects.get(i));
@@ -422,11 +436,10 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
         for (int i=0; i<non_text.size(); i++)
             Imgproc.rectangle(rgbaMat, non_text.get(i).tl(), non_text.get(i).br(), new Scalar(0, 0, 255), 2);
-
     }
+
     /*
         helper for hysteresis tracking
-
      */
     public boolean close(Rect a, Rect b) {
         double align_ratio = .2;
@@ -592,9 +605,9 @@ public class DetectActivity extends AppCompatActivity {
         });
 
         //sorts the text by x first(which is y for actual flipped image)
-        for(int i = 0; i < text.size();i++) {
-            Log.d("tag", "sorted text: " + text.get(i));
-        }
+//        for(int i = 0; i < text.size();i++) {
+//            Log.d("tag", "sorted text: " + text.get(i));
+//        }
         //Log.d("tag", "space");
         //Log.d("tag", "space");
         int count = 0;
@@ -615,19 +628,19 @@ public class DetectActivity extends AppCompatActivity {
                 int w = Math.max(text.get(0).x + text.get(0).width,text.get(merge_index).x+ text.get(merge_index).width) - x;
                 int h = Math.max(text.get(0).y +text.get(0).height,text.get(merge_index).y+ text.get(merge_index).height) - y;
 
-                Log.d("tag", " initial index "+ text.get(0));
-                Log.d("tag", " merge index "+ text.get(merge_index));
-
-                Log.d("tag", " x "+ text.get(0).x);
-                Log.d("tag", " y "+ text.get(0).y);
-                Log.d("tag", " m_x "+ text.get(merge_index).x);
-                Log.d("tag", " m_y "+ text.get(merge_index).y);
-
-                Log.d("tag", " min_x "+ x);
-                Log.d("tag", " min_y "+ y);
+//                Log.d("tag", " initial index "+ text.get(0));
+//                Log.d("tag", " merge index "+ text.get(merge_index));
+//
+//                Log.d("tag", " x "+ text.get(0).x);
+//                Log.d("tag", " y "+ text.get(0).y);
+//                Log.d("tag", " m_x "+ text.get(merge_index).x);
+//                Log.d("tag", " m_y "+ text.get(merge_index).y);
+//
+//                Log.d("tag", " min_x "+ x);
+//                Log.d("tag", " min_y "+ y);
 
                 text.set(0,new Rect(x,y,w,h));
-                Log.d("tag", " new rect "+ text.get(merge_index));
+//                Log.d("tag", " new rect "+ text.get(merge_index));
                 //Log.d("tag", " prior to text size change: "+ text.size());
                 text.remove(merge_index);
                 //Log.d("tag", "text size change: "+ text.size());
@@ -654,6 +667,26 @@ public class DetectActivity extends AppCompatActivity {
         for (int i=0; i<text.size(); i++)
             Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
 
+    }
+
+
+
+    /**
+     * On Permission, write the traineddata to the external storage
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        Log.i(TAG, "onRequestPermissionsResult: "+grantResults[0]);
+        switch (requestCode){
+            case PERMISSION_REQUEST_CODE:
+                if (grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED){
+                    Log.i(TAG, "onRequestPermissionsResult: copy");
+                    prepareTessData();
+                }
+                break;
+            default:
+                break;
+        }
     }
 
     //this is the function that tries to store eng.traineddata in tablet
@@ -707,6 +740,7 @@ public class DetectActivity extends AppCompatActivity {
                     f.createNewFile(); //create eng.traineddata in tablet
                 } catch (IOException e){
                     e.printStackTrace();
+                    Log.d(TAG, "printStackTrace");
                 }
 
                 //write every thing in /assests/eng.traineddata to the eng.traindata in tablet
@@ -825,7 +859,7 @@ public class DetectActivity extends AppCompatActivity {
         } catch (Exception e){
             Log.d(TAG, e.getMessage());
         }
-         //this is where always get an error: Data path does not exist or something similar
+        //this is where always get an error: Data path does not exist or something similar
         //it cannot find the eng.traineddata we try to store in tablet
         //really sad, I have tried here for half a day, still no progress
         //but there seems to be many sources online we can refer to
@@ -838,6 +872,7 @@ public class DetectActivity extends AppCompatActivity {
         tessBaseAPI.setImage(bitmap);
         String retStr = tessBaseAPI.getUTF8Text();
         tessBaseAPI.end();
+        Log.d(TAG, retStr);
         return retStr;
     }
 }
