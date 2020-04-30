@@ -812,6 +812,7 @@ public class DetectActivity extends AppCompatActivity {
         String title = exact_text.split("\n")[0];
         String date = exact_text.split("\n")[1];
         String time = exact_text.split("\n")[2];
+        String location = exact_text.split("\n")[3];
         int year = Integer.parseInt(date.split(" ")[2]);
         int day = Integer.parseInt(date.split(" ")[0]);
         int month;
@@ -846,8 +847,8 @@ public class DetectActivity extends AppCompatActivity {
                 .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginTime.getTimeInMillis())
                 .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime.getTimeInMillis())
                 .putExtra(CalendarContract.Events.TITLE, title)
-                .putExtra(CalendarContract.Events.DESCRIPTION, title);
-//                .putExtra(CalendarContract.Events.EVENT_LOCATION, "The gym")
+                .putExtra(CalendarContract.Events.DESCRIPTION, title)
+                .putExtra(CalendarContract.Events.EVENT_LOCATION, location);
 //                .putExtra(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_BUSY)
 //                .putExtra(Intent.EXTRA_EMAIL, "rowan@example.com, trevor@example.com");
         startActivity(intent);
