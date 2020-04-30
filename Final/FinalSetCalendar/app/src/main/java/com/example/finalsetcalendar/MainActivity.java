@@ -1,12 +1,5 @@
 package com.example.finalsetcalendar;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
-
 import android.Manifest;
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -24,6 +17,13 @@ import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 
 import org.opencv.android.OpenCVLoader;
 
@@ -150,7 +150,8 @@ public class MainActivity extends AppCompatActivity {
     private void setupBitmap() {
         BitmapDrawable abmp = (BitmapDrawable) selectedImage.getDrawable();
         bmp = abmp.getBitmap();
-        //Log.d("tag", "bitmap size = (height, width) = " + bmp.getHeight() + ", " + bmp.getWidth());
+        Log.d("tag", "bitmap size = (height, width) = " + bmp.getHeight() + ", " + bmp.getWidth());
+//        bmp = Bitmap.createb;
         bmp = Bitmap.createScaledBitmap(bmp, width, height, true);
     }
 
@@ -187,7 +188,6 @@ public class MainActivity extends AppCompatActivity {
                 photoFile = createImageFile();
             } catch (IOException ex) {
                 // Error occurred while creating the File
-
             }
             // Continue only if the File was successfully created
             if (photoFile != null) {

@@ -1,14 +1,21 @@
 package com.example.finalsetcalendar;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.googlecode.tesseract.android.TessBaseAPI;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
@@ -22,15 +29,18 @@ import org.opencv.core.Size;
 import org.opencv.features2d.MSER;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Dictionary;
 import java.util.List;
 
 import static org.opencv.features2d.MSER.create;
 import static org.opencv.imgproc.Imgproc.INTER_AREA;
-import static org.opencv.imgproc.Imgproc.PROJ_SPHERICAL_EQRECT;
 import static org.opencv.imgproc.Imgproc.resize;
 
 
@@ -41,9 +51,21 @@ public class DetectActivity extends AppCompatActivity {
     Bitmap bmp;
     int height, width;
     int stepFlag;
+    String exact_text; // used to store the exact text extracted by OCR
 
     Mat origMat, rgbaMat, grayMat, bwMat;
     List<Rect> rects, strong_text, weak_text, non_text, text;
+
+    //four variables created for OCR
+    private static final String TAG = "TessTag"; // tag for Tess part
+    private  static final String DATA_PATH = Environment.getExternalStorageDirectory().toString() + "/";  // not "/Tess"
+//    private final String DATA_PATH = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) + "/"; //cant use the app files...
+    private static final String TESS_DATA = "/tessdata"; //a subfolder mandatory for OCR, where the eng.traineddata is stored
+    private TessBaseAPI tessBaseAPI; //an instance for the TessBaseAPI to implement OCR
+
+    //Permission request
+    private static final int PERMISSION_REQUEST_CODE=0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,6 +75,14 @@ public class DetectActivity extends AppCompatActivity {
         stepBtn = findViewById(R.id.stepBtn);
         resetBtn = findViewById(R.id.resetBtn);
         reset();        // Initialization
+
+        // Permission to write on the external storage
+        if (Build.VERSION.SDK_INT >= 23) {
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+                    checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE);
+            }
+        }
 
         resetBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -84,7 +114,7 @@ public class DetectActivity extends AppCompatActivity {
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
-                    Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
                     cannyClassify();
 
                     //String mlbp= encodeImg(rects.get(7));   //"M"
@@ -102,12 +132,30 @@ public class DetectActivity extends AppCompatActivity {
                     Toast.makeText(DetectActivity.this, "Hysteresis...", Toast.LENGTH_SHORT).show();
                     hysteresis_tracking();
 
-                    //goruping
+                    //grouping
                 } else if(stepFlag == 5) {
                     Log.d("tag", "step" + stepFlag + ": Grouping");
                     Toast.makeText(DetectActivity.this, "Grouping...", Toast.LENGTH_SHORT).show();
                     grouping();
+
+                    //extracting text
+                    //this if block is for extracting text by OCR
+                } else if(stepFlag == 6) {
+                    Log.d("tag", "step" + stepFlag + ": Extracting text");
+                    Toast.makeText(DetectActivity.this, "Extracting text...", Toast.LENGTH_SHORT).show();
+
+                    prepareTessData();
+                    Mat tessMat = new Mat();
+                    grayMat.copyTo(tessMat);
+
+                    // rotate the image before ocr
+                    Mat rotM = Imgproc.getRotationMatrix2D(new Point(tessMat.cols()/2, tessMat.rows()/2), 270, 1);
+                    Imgproc.warpAffine(tessMat, tessMat, rotM, tessMat.size());
+
+                    detectText(tessMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
+                    Log.d("tag", exact_text);
                 }
+
 
                 // Mat to Bitmap to Imageview
                 Utils.matToBitmap(rgbaMat, bmp);
@@ -163,7 +211,6 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, rects.get(i).tl(), rects.get(i).br(), new Scalar(0, 255, 0), 2);
         }
     }
-
 
     public void mser_reduce(){
         // reduce MSER regions
@@ -362,8 +409,8 @@ public class DetectActivity extends AppCompatActivity {
             String mlbp= encodeImg(rects.get(i));
             CannyClassifier myCanny = new CannyClassifier(mlbp);
 
-            Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
-            Log.d("tag", "letter: " + myCanny.letter + "; sim: " + myCanny.sim + "; class: " + myCanny.theclass);
+//            Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
+//            Log.d("tag", "letter: " + myCanny.letter + "; sim: " + myCanny.sim + "; class: " + myCanny.theclass);
 
             if (myCanny.theclass == myCanny.STRONG) {
                 strong_text.add(rects.get(i));
@@ -385,11 +432,10 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
         for (int i=0; i<non_text.size(); i++)
             Imgproc.rectangle(rgbaMat, non_text.get(i).tl(), non_text.get(i).br(), new Scalar(0, 0, 255), 2);
-
     }
+
     /*
         helper for hysteresis tracking
-
      */
     public boolean close(Rect a, Rect b) {
         double align_ratio = .2;
@@ -555,9 +601,9 @@ public class DetectActivity extends AppCompatActivity {
         });
 
         //sorts the text by x first(which is y for actual flipped image)
-        for(int i = 0; i < text.size();i++) {
-            Log.d("tag", "sorted text: " + text.get(i));
-        }
+//        for(int i = 0; i < text.size();i++) {
+//            Log.d("tag", "sorted text: " + text.get(i));
+//        }
         //Log.d("tag", "space");
         //Log.d("tag", "space");
         int count = 0;
@@ -578,19 +624,19 @@ public class DetectActivity extends AppCompatActivity {
                 int w = Math.max(text.get(0).x + text.get(0).width,text.get(merge_index).x+ text.get(merge_index).width) - x;
                 int h = Math.max(text.get(0).y +text.get(0).height,text.get(merge_index).y+ text.get(merge_index).height) - y;
 
-                Log.d("tag", " initial index "+ text.get(0));
-                Log.d("tag", " merge index "+ text.get(merge_index));
-
-                Log.d("tag", " x "+ text.get(0).x);
-                Log.d("tag", " y "+ text.get(0).y);
-                Log.d("tag", " m_x "+ text.get(merge_index).x);
-                Log.d("tag", " m_y "+ text.get(merge_index).y);
-
-                Log.d("tag", " min_x "+ x);
-                Log.d("tag", " min_y "+ y);
+//                Log.d("tag", " initial index "+ text.get(0));
+//                Log.d("tag", " merge index "+ text.get(merge_index));
+//
+//                Log.d("tag", " x "+ text.get(0).x);
+//                Log.d("tag", " y "+ text.get(0).y);
+//                Log.d("tag", " m_x "+ text.get(merge_index).x);
+//                Log.d("tag", " m_y "+ text.get(merge_index).y);
+//
+//                Log.d("tag", " min_x "+ x);
+//                Log.d("tag", " min_y "+ y);
 
                 text.set(0,new Rect(x,y,w,h));
-                Log.d("tag", " new rect "+ text.get(merge_index));
+//                Log.d("tag", " new rect "+ text.get(merge_index));
                 //Log.d("tag", " prior to text size change: "+ text.size());
                 text.remove(merge_index);
                 //Log.d("tag", "text size change: "+ text.size());
@@ -614,12 +660,216 @@ public class DetectActivity extends AppCompatActivity {
         }
         Log.d("tag", "final grouped text size: " + text.size());
         origMat.copyTo(rgbaMat);
-        for (int i=0; i<text.size(); i++)
+        for (int i=0; i<text.size(); i++) {
             Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
-
+            Log.d("tag", "textidx: " + i + " x: "+text.get(i).x + " y: "+text.get(i).y + " w: "+text.get(i).width + " h: "+text.get(i).height);
+        }
     }
 
 
 
+    /**
+     * On Permission, write the traineddata to the external storage
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        Log.i(TAG, "onRequestPermissionsResult: "+grantResults[0]);
+        switch (requestCode){
+            case PERMISSION_REQUEST_CODE:
+                if (grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED){
+                    Log.i(TAG, "onRequestPermissionsResult: copy");
+                    prepareTessData();
+                }
+                break;
+            default:
+                break;
+        }
+    }
 
+    //store eng.traineddata in tablet
+    private void prepareTessData(){
+//        try {
+//            File dir = new File(DATA_PATH+TESS_DATA);
+//            if (!dir.exists()){
+//                dir.mkdir();
+//                }
+//            String fileList[] = getAssets().list("");
+//            for (String fileName : fileList){
+//                String pathToDataFile = DATA_PATH + TESS_DATA + "/" + fileName;
+//                Log.d(TAG, pathToDataFile);
+//                if (!(new File(pathToDataFile)).exists()){
+//                    InputStream is = getAssets().open(fileName);
+//                    OutputStream os = new FileOutputStream(pathToDataFile);
+//                    byte [] buff = new byte[1024];
+//                    int len;
+//                    while ((len = is.read(buff)) > 0){
+//                        os.write(buff, 0, len);
+//                    }
+//                    is.close();
+//                    os.close();
+//                }
+//        } catch (IOException e) {
+//            Log.w(TAG, e.getMessage());
+//        }
+            String path = DATA_PATH + TESS_DATA + "/eng.traineddata";
+            String name = "eng.traineddata";
+
+            Log.d(TAG, path);
+            //if exist, delete it
+            File f = new File(path);
+            if (f.exists()){
+                f.delete();
+            }
+            if (!f.exists()){
+                File p = new File(f.getParent());
+                if (!p.exists()){ //make the directory
+                    p.mkdir();
+                }
+                try {
+                    f.createNewFile(); //create eng.traineddata in tablet
+                } catch (IOException e){
+                    e.printStackTrace();
+                    Log.d(TAG, "printStackTrace");
+                }
+
+                //write every thing in /assests/eng.traineddata to the eng.traindata in tablet
+                InputStream is = null;
+                OutputStream os = null;
+                try {
+                    is = this.getAssets().open(name);
+                    File file = new File(path);
+                    os = new FileOutputStream(file);
+                    byte[] bytes = new byte[2048];
+                    int len = 0;
+                    while ((len = is.read(bytes)) != -1){
+                        os.write(bytes, 0, len);
+                    }
+                    os.flush();
+                } catch (IOException e){
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        if (is != null){
+                            is.close();
+                        }
+                        if (os != null){
+                            os.close();
+                        }
+                    } catch (IOException e){
+                        e.printStackTrace();
+                    }
+                }
+            }
+            Log.d(TAG, "prepare tess data succeeds");
+    }
+
+    //The main function that extract the text using OCR
+    //mat is a grayMat
+    private void detectText(Mat mat){
+//        Mat imageMat2 = new Mat();
+//        Imgproc.cvtColor(mat, imageMat2, Imgproc.COLOR_RGB2GRAY);
+//        Mat mRgba = mat;
+//        Mat mGray = imageMat2;
+//
+//        Scalar CONTOUR_COLOR = new Scalar(1, 255, 128, 0);
+//        MatOfKeyPoint keyPoint = new MatOfKeyPoint();
+//        List<KeyPoint> listPoint = new ArrayList<>();
+//        KeyPoint kPoint = new KeyPoint();
+//        Mat mask = Mat.zeros(mGray.size(), CvType.CV_8UC1);
+//        int rectanx1;
+//        int rectany1;
+//        int rectanx2;
+//        int rectany2;
+//
+//        Scalar zeros = new Scalar(0,0,0);
+//        List<MatOfPoint> contour2 = new ArrayList<>();
+//        Mat kernel = new Mat(1, 50, CvType.CV_8UC1, Scalar.all(255));
+//        Mat morByte = new Mat();
+//        Mat hierarchy = new Mat();
+//
+//        Rect rectan3 = new Rect();
+//        int imgSize = mRgba.height() * mRgba.width();
+
+        List<Rect> rotatedtext = new ArrayList<Rect>();
+        for (int i=0; i<text.size(); i++) {
+            Rect tmp = text.get(i);
+            int rotx = height - (tmp.y+tmp.height) - (height-width)/2;
+            int roty = tmp.x + (height-width)/2;
+            int rotw = tmp.height;
+            int roth = tmp.width;
+            Rect rotRect = new Rect(rotx, roty, rotw, roth);
+            //Log.d("tag", "textidx:"+i+" x:"+rotx+" y:"+roty+" w:"+rotw+" h:"+roth);
+            rotatedtext.add(rotRect);
+        }
+
+        if(true){
+//            FeatureDetector detector = FeatureDetector.create(FeatureDetector.MSER);
+//            detector.detect(mGray, keyPoint);
+//            listPoint = keyPoint.toList();
+//            for(int ind = 0; ind < listPoint.size(); ++ind){
+//                kPoint = listPoint.get(ind);
+//                rectanx1 = (int ) (kPoint.pt.x - 0.5 * kPoint.size);
+//                rectany1 = (int ) (kPoint.pt.y - 0.5 * kPoint.size);
+//
+//                rectanx2 = (int) (kPoint.size);
+//                rectany2 = (int) (kPoint.size);
+//                if(rectanx1 <= 0){
+//                    rectanx1 = 1;
+//                }
+//                if(rectany1 <= 0){
+//                    rectany1 = 1;
+//                }
+//                if((rectanx1 + rectanx2) > mGray.width()){
+//                    rectanx2 = mGray.width() - rectanx1;
+//                }
+//                if((rectany1 + rectany2) > mGray.height()){
+//                    rectany2 = mGray.height() - rectany1;
+//                }
+//                Rect rectant = new Rect(rectanx1, rectany1, rectanx2, rectany2);
+//                Mat roi = new Mat(mask, rectant);
+//                roi.setTo(CONTOUR_COLOR);
+//            }
+//
+//            Imgproc.morphologyEx(mask, morByte, Imgproc.MORPH_DILATE, kernel);
+//            Imgproc.findContours(morByte, contour2, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
+            Bitmap bmp = null;
+            StringBuilder sb = new StringBuilder();
+            for(int i = 0; i<rotatedtext.size(); ++i){
+                Rect rotatedRect = rotatedtext.get(i);
+                try {
+                    Mat croppedPart = mat.submat(rotatedRect);
+                    bmp = Bitmap.createBitmap(croppedPart.width(), croppedPart.height(), Bitmap.Config.ARGB_8888);
+                    Utils.matToBitmap(croppedPart, bmp);
+                } catch (Exception e){
+                    Log.d(TAG, "Cropped part error");
+                }
+                if (bmp != null){
+                    String str = getTextWithTesseract (bmp); //this is where always get an error
+                    if (str != null){
+                        sb.append(str).append("\n");
+                    }
+                }
+            }
+            exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
+            mat.copyTo(rgbaMat);
+            for (int i=0; i<text.size(); i++) {
+                Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
+            }
+        }
+    }
+
+    //this function is a helper function for the detectText() function
+    private String getTextWithTesseract(Bitmap bitmap){
+        try {
+            tessBaseAPI = new TessBaseAPI();
+        } catch (Exception e){
+            Log.d(TAG, e.getMessage());
+        }
+        tessBaseAPI.init(DATA_PATH, "eng");
+        tessBaseAPI.setImage(bitmap);
+        String retStr = tessBaseAPI.getUTF8Text();
+        tessBaseAPI.end();
+        //Log.d(TAG, retStr);
+        return retStr;
+    }
 }

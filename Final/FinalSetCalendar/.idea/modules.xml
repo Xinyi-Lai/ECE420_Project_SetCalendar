@@ -3,6 +3,9 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/Final Set Calendar.iml" filepath="$PROJECT_DIR$/Final Set Calendar.iml" group="Final Set Calendar" />
+      <module fileurl="file://$PROJECT_DIR$/Final-FinalSetCalendar-Final Set Calendar.iml" filepath="$PROJECT_DIR$/Final-FinalSetCalendar-Final Set Calendar.iml" group="Final Set Calendar" />
+      <module fileurl="file://$PROJECT_DIR$/app/Final-FinalSetCalendar-app.iml" filepath="$PROJECT_DIR$/app/Final-FinalSetCalendar-app.iml" group="Final Set Calendar/app" />
+      <module fileurl="file://$PROJECT_DIR$/openCVLibrary340dev/Final-FinalSetCalendar-openCVLibrary340dev.iml" filepath="$PROJECT_DIR$/openCVLibrary340dev/Final-FinalSetCalendar-openCVLibrary340dev.iml" group="Final Set Calendar/openCVLibrary340dev" />
       <module fileurl="file://$PROJECT_DIR$/.idea/FinalSetCalendar.iml" filepath="$PROJECT_DIR$/.idea/FinalSetCalendar.iml" />
       <module fileurl="file://$PROJECT_DIR$/FinalSetCalendar-Final Set Calendar.iml" filepath="$PROJECT_DIR$/FinalSetCalendar-Final Set Calendar.iml" group="Final Set Calendar" />
       <module fileurl="file://$PROJECT_DIR$/app/FinalSetCalendar-app.iml" filepath="$PROJECT_DIR$/app/FinalSetCalendar-app.iml" group="Final Set Calendar/app" />
