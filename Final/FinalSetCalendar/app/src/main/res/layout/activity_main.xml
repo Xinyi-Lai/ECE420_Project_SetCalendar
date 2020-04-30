@@ -8,7 +8,7 @@
 
     <ImageView
         android:id="@+id/displayImageView"
-        android:layout_width="536dp"
+        android:layout_width="513dp"
         android:layout_height="385dp"
         android:adjustViewBounds="false"
         android:cropToPadding="false"

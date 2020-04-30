@@ -18,10 +18,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
 import org.opencv.android.Utils;
-import org.opencv.core.CvType;
-import org.opencv.core.KeyPoint;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
@@ -29,7 +26,6 @@ import org.opencv.core.Range;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
-import org.opencv.features2d.FeatureDetector;
 import org.opencv.features2d.MSER;
 import org.opencv.imgproc.Imgproc;
 
@@ -136,7 +132,7 @@ public class DetectActivity extends AppCompatActivity {
                     Toast.makeText(DetectActivity.this, "Hysteresis...", Toast.LENGTH_SHORT).show();
                     hysteresis_tracking();
 
-                    //goruping
+                    //grouping
                 } else if(stepFlag == 5) {
                     Log.d("tag", "step" + stepFlag + ": Grouping");
                     Toast.makeText(DetectActivity.this, "Grouping...", Toast.LENGTH_SHORT).show();
@@ -147,16 +143,16 @@ public class DetectActivity extends AppCompatActivity {
                 } else if(stepFlag == 6) {
                     Log.d("tag", "step" + stepFlag + ": Extracting text");
                     Toast.makeText(DetectActivity.this, "Extracting text...", Toast.LENGTH_SHORT).show();
-                    //store eng.traineddata in tablet, but it's not working currently due to some magic
-                    //it seems that it cannot store eng.traineddata in tablet because of the android version
-                    //this function should work for android 6.0 or below directly, but the android in tablet is 7.0 quq
-                    //for android that is above 6.0, a permission is needed
-                    //here is the link I find https://www.jianshu.com/p/cc9ae05423a8, but it's in Chinese
-                    //I don't have time to try this out
-                    //I think if we can store eng.traineddata in tablet, we are almost there
+
                     prepareTessData();
-                    origMat.copyTo(rgbaMat);
-                    detectText(rgbaMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
+                    Mat tessMat = new Mat();
+                    grayMat.copyTo(tessMat);
+
+                    // rotate the image before ocr
+                    Mat rotM = Imgproc.getRotationMatrix2D(new Point(tessMat.cols()/2, tessMat.rows()/2), 270, 1);
+                    Imgproc.warpAffine(tessMat, tessMat, rotM, tessMat.size());
+
+                    detectText(tessMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
                     Log.d("tag", exact_text);
                 }
 
@@ -664,9 +660,10 @@ public class DetectActivity extends AppCompatActivity {
         }
         Log.d("tag", "final grouped text size: " + text.size());
         origMat.copyTo(rgbaMat);
-        for (int i=0; i<text.size(); i++)
+        for (int i=0; i<text.size(); i++) {
             Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
-
+            Log.d("tag", "textidx: " + i + " x: "+text.get(i).x + " y: "+text.get(i).y + " w: "+text.get(i).width + " h: "+text.get(i).height);
+        }
     }
 
 
@@ -689,15 +686,7 @@ public class DetectActivity extends AppCompatActivity {
         }
     }
 
-    //this is the function that tries to store eng.traineddata in tablet
-    //the commented part is from https://www.youtube.com/watch?v=_h1SyNZ0pG4
-    //this guy also has a github
-    //https://github.com/pethoalpar/OpenCvTextAreaDetector, this link is where you can start to implement the OCR
-    //https://github.com/pethoalpar/AndroidTessTwoOCR, this link should be where you end up with after implementing the OCR from the right above link
-    //
-    //the uncommented part is from https://www.jianshu.com/p/cc9ae05423a8
-    //they are basically trying to do the same thing, i.e. storing eng.traineddata in tablet where TessBaseAPI.init() can find
-    //currently, it seems that I cannot store eng.traineddata in tablet or TessBaseAPI.init() cannot find it
+    //store eng.traineddata in tablet
     private void prepareTessData(){
 //        try {
 //            File dir = new File(DATA_PATH+TESS_DATA);
@@ -774,68 +763,81 @@ public class DetectActivity extends AppCompatActivity {
             Log.d(TAG, "prepare tess data succeeds");
     }
 
-    //this is the main function that extract the text using OCR
-    //I think this function should be fine
+    //The main function that extract the text using OCR
+    //mat is a grayMat
     private void detectText(Mat mat){
-        Mat imageMat2 = new Mat();
-        Imgproc.cvtColor(mat, imageMat2, Imgproc.COLOR_RGB2GRAY);
-        Mat mRgba = mat;
-        Mat mGray = imageMat2;
+//        Mat imageMat2 = new Mat();
+//        Imgproc.cvtColor(mat, imageMat2, Imgproc.COLOR_RGB2GRAY);
+//        Mat mRgba = mat;
+//        Mat mGray = imageMat2;
+//
+//        Scalar CONTOUR_COLOR = new Scalar(1, 255, 128, 0);
+//        MatOfKeyPoint keyPoint = new MatOfKeyPoint();
+//        List<KeyPoint> listPoint = new ArrayList<>();
+//        KeyPoint kPoint = new KeyPoint();
+//        Mat mask = Mat.zeros(mGray.size(), CvType.CV_8UC1);
+//        int rectanx1;
+//        int rectany1;
+//        int rectanx2;
+//        int rectany2;
+//
+//        Scalar zeros = new Scalar(0,0,0);
+//        List<MatOfPoint> contour2 = new ArrayList<>();
+//        Mat kernel = new Mat(1, 50, CvType.CV_8UC1, Scalar.all(255));
+//        Mat morByte = new Mat();
+//        Mat hierarchy = new Mat();
+//
+//        Rect rectan3 = new Rect();
+//        int imgSize = mRgba.height() * mRgba.width();
 
-        Scalar CONTOUR_COLOR = new Scalar(1, 255, 128, 0);
-        MatOfKeyPoint keyPoint = new MatOfKeyPoint();
-        List<KeyPoint> listPoint = new ArrayList<>();
-        KeyPoint kPoint = new KeyPoint();
-        Mat mask = Mat.zeros(mGray.size(), CvType.CV_8UC1);
-        int rectanx1;
-        int rectany1;
-        int rectanx2;
-        int rectany2;
-
-        Scalar zeros = new Scalar(0,0,0);
-        List<MatOfPoint> contour2 = new ArrayList<>();
-        Mat kernel = new Mat(1, 50, CvType.CV_8UC1, Scalar.all(255));
-        Mat morByte = new Mat();
-        Mat hierarchy = new Mat();
-
-        Rect rectan3 = new Rect();
-        int imgSize = mRgba.height() * mRgba.width();
+        List<Rect> rotatedtext = new ArrayList<Rect>();
+        for (int i=0; i<text.size(); i++) {
+            Rect tmp = text.get(i);
+            int rotx = height - (tmp.y+tmp.height) - (height-width)/2;
+            int roty = tmp.x + (height-width)/2;
+            int rotw = tmp.height;
+            int roth = tmp.width;
+            Rect rotRect = new Rect(rotx, roty, rotw, roth);
+            //Log.d("tag", "textidx:"+i+" x:"+rotx+" y:"+roty+" w:"+rotw+" h:"+roth);
+            rotatedtext.add(rotRect);
+        }
 
         if(true){
-            FeatureDetector detector = FeatureDetector.create(FeatureDetector.MSER);
-            detector.detect(mGray, keyPoint);
-            listPoint = keyPoint.toList();
-            for(int ind = 0; ind < listPoint.size(); ++ind){
-                kPoint = listPoint.get(ind);
-                rectanx1 = (int ) (kPoint.pt.x - 0.5 * kPoint.size);
-                rectany1 = (int ) (kPoint.pt.y - 0.5 * kPoint.size);
-
-                rectanx2 = (int) (kPoint.size);
-                rectany2 = (int) (kPoint.size);
-                if(rectanx1 <= 0){
-                    rectanx1 = 1;
-                }
-                if(rectany1 <= 0){
-                    rectany1 = 1;
-                }
-                if((rectanx1 + rectanx2) > mGray.width()){
-                    rectanx2 = mGray.width() - rectanx1;
-                }
-                if((rectany1 + rectany2) > mGray.height()){
-                    rectany2 = mGray.height() - rectany1;
-                }
-                Rect rectant = new Rect(rectanx1, rectany1, rectanx2, rectany2);
-                Mat roi = new Mat(mask, rectant);
-                roi.setTo(CONTOUR_COLOR);
-            }
-            Imgproc.morphologyEx(mask, morByte, Imgproc.MORPH_DILATE, kernel);
-            Imgproc.findContours(morByte, contour2, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
+//            FeatureDetector detector = FeatureDetector.create(FeatureDetector.MSER);
+//            detector.detect(mGray, keyPoint);
+//            listPoint = keyPoint.toList();
+//            for(int ind = 0; ind < listPoint.size(); ++ind){
+//                kPoint = listPoint.get(ind);
+//                rectanx1 = (int ) (kPoint.pt.x - 0.5 * kPoint.size);
+//                rectany1 = (int ) (kPoint.pt.y - 0.5 * kPoint.size);
+//
+//                rectanx2 = (int) (kPoint.size);
+//                rectany2 = (int) (kPoint.size);
+//                if(rectanx1 <= 0){
+//                    rectanx1 = 1;
+//                }
+//                if(rectany1 <= 0){
+//                    rectany1 = 1;
+//                }
+//                if((rectanx1 + rectanx2) > mGray.width()){
+//                    rectanx2 = mGray.width() - rectanx1;
+//                }
+//                if((rectany1 + rectany2) > mGray.height()){
+//                    rectany2 = mGray.height() - rectany1;
+//                }
+//                Rect rectant = new Rect(rectanx1, rectany1, rectanx2, rectany2);
+//                Mat roi = new Mat(mask, rectant);
+//                roi.setTo(CONTOUR_COLOR);
+//            }
+//
+//            Imgproc.morphologyEx(mask, morByte, Imgproc.MORPH_DILATE, kernel);
+//            Imgproc.findContours(morByte, contour2, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
             Bitmap bmp = null;
             StringBuilder sb = new StringBuilder();
-            for(int i = 0; i<contour2.size(); ++i){
-                rectan3 = Imgproc.boundingRect(contour2.get(i));
+            for(int i = 0; i<rotatedtext.size(); ++i){
+                Rect rotatedRect = rotatedtext.get(i);
                 try {
-                    Mat croppedPart = mGray.submat(rectan3);
+                    Mat croppedPart = mat.submat(rotatedRect);
                     bmp = Bitmap.createBitmap(croppedPart.width(), croppedPart.height(), Bitmap.Config.ARGB_8888);
                     Utils.matToBitmap(croppedPart, bmp);
                 } catch (Exception e){
@@ -844,11 +846,15 @@ public class DetectActivity extends AppCompatActivity {
                 if (bmp != null){
                     String str = getTextWithTesseract (bmp); //this is where always get an error
                     if (str != null){
-                        sb.append(str).append("/n");
+                        sb.append(str).append("\n");
                     }
                 }
             }
             exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
+            mat.copyTo(rgbaMat);
+            for (int i=0; i<text.size(); i++) {
+                Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
+            }
         }
     }
 
@@ -859,20 +865,11 @@ public class DetectActivity extends AppCompatActivity {
         } catch (Exception e){
             Log.d(TAG, e.getMessage());
         }
-        //this is where always get an error: Data path does not exist or something similar
-        //it cannot find the eng.traineddata we try to store in tablet
-        //really sad, I have tried here for half a day, still no progress
-        //but there seems to be many sources online we can refer to
-        //just try them out
-        //I think we can fix this problem
-        //we are almost there as long as we can store eng.traineddata in tablet
-        //I think it's the android version causing the problem, as is mentioned above
         tessBaseAPI.init(DATA_PATH, "eng");
-        //*********************************************************************************
         tessBaseAPI.setImage(bitmap);
         String retStr = tessBaseAPI.getUTF8Text();
         tessBaseAPI.end();
-        Log.d(TAG, retStr);
+        //Log.d(TAG, retStr);
         return retStr;
     }
 }

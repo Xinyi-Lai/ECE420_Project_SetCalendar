@@ -150,7 +150,8 @@ public class MainActivity extends AppCompatActivity {
     private void setupBitmap() {
         BitmapDrawable abmp = (BitmapDrawable) selectedImage.getDrawable();
         bmp = abmp.getBitmap();
-        //Log.d("tag", "bitmap size = (height, width) = " + bmp.getHeight() + ", " + bmp.getWidth());
+        Log.d("tag", "bitmap size = (height, width) = " + bmp.getHeight() + ", " + bmp.getWidth());
+//        bmp = Bitmap.createb;
         bmp = Bitmap.createScaledBitmap(bmp, width, height, true);
     }
 
