@@ -46,6 +46,8 @@ public class MainActivity extends AppCompatActivity {
     public ImageView selectedImage;
     Button cameraBtn, galleryBtn, detectBtn;
 
+    Button calendarBtn;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
         cameraBtn = findViewById(R.id.cameraBtn);
         galleryBtn = findViewById(R.id.galleryBtn);
         detectBtn = findViewById(R.id.detectBtn);
+
+        calendarBtn = findViewById(R.id.calendarBtn);
 
         cameraBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -85,14 +89,17 @@ public class MainActivity extends AppCompatActivity {
         detectBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                openActivityDetect();
+                startActivity(new Intent(MainActivity.this, DetectActivity.class));
             }
         });
 
-    }
+        calendarBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, CalendarActivity.class));
+            }
+        });
 
-    private void openActivityDetect() {
-        startActivity(new Intent(MainActivity.this, DetectActivity.class));
     }
 
     private void askCameraPermissions() {

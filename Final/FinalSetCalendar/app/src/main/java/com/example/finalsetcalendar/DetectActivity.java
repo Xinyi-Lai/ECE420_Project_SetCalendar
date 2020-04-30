@@ -143,15 +143,12 @@ public class DetectActivity extends AppCompatActivity {
                 } else if(stepFlag == 6) {
                     Log.d("tag", "step" + stepFlag + ": Extracting text");
                     Toast.makeText(DetectActivity.this, "Extracting text...", Toast.LENGTH_SHORT).show();
-
                     prepareTessData();
+                    // rotate the image before ocr
                     Mat tessMat = new Mat();
                     grayMat.copyTo(tessMat);
-
-                    // rotate the image before ocr
                     Mat rotM = Imgproc.getRotationMatrix2D(new Point(tessMat.cols()/2, tessMat.rows()/2), 270, 1);
                     Imgproc.warpAffine(tessMat, tessMat, rotM, tessMat.size());
-
                     detectText(tessMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
                     Log.d("tag", exact_text);
                 }
@@ -497,10 +494,10 @@ public class DetectActivity extends AppCompatActivity {
         List<Rect> temp = new ArrayList<Rect>();
 
         // criteria for removing noisy strong text
-        int top_bound = (int) ((float)height / 8.0);
-        int bottom_bound = (int) ((float)height * 7.0 / 8.0);
-        int left_bound = (int) ((float)width / 8.0);
-        int right_bound = (int) ((float)width * 7.0 / 8.0);
+        int top_bound = (int) ((float)height / 10.0);
+        int bottom_bound = (int) ((float)height * 9.0 / 10.0);
+        int left_bound = (int) ((float)width / 10.0);
+        int right_bound = (int) ((float)width * 9.0 / 10.0);
 
         for(int i = 0; i < strong_text.size(); i++) {
             temp.add(strong_text.get(i));
@@ -688,29 +685,6 @@ public class DetectActivity extends AppCompatActivity {
 
     //store eng.traineddata in tablet
     private void prepareTessData(){
-//        try {
-//            File dir = new File(DATA_PATH+TESS_DATA);
-//            if (!dir.exists()){
-//                dir.mkdir();
-//                }
-//            String fileList[] = getAssets().list("");
-//            for (String fileName : fileList){
-//                String pathToDataFile = DATA_PATH + TESS_DATA + "/" + fileName;
-//                Log.d(TAG, pathToDataFile);
-//                if (!(new File(pathToDataFile)).exists()){
-//                    InputStream is = getAssets().open(fileName);
-//                    OutputStream os = new FileOutputStream(pathToDataFile);
-//                    byte [] buff = new byte[1024];
-//                    int len;
-//                    while ((len = is.read(buff)) > 0){
-//                        os.write(buff, 0, len);
-//                    }
-//                    is.close();
-//                    os.close();
-//                }
-//        } catch (IOException e) {
-//            Log.w(TAG, e.getMessage());
-//        }
             String path = DATA_PATH + TESS_DATA + "/eng.traineddata";
             String name = "eng.traineddata";
 
@@ -766,29 +740,6 @@ public class DetectActivity extends AppCompatActivity {
     //The main function that extract the text using OCR
     //mat is a grayMat
     private void detectText(Mat mat){
-//        Mat imageMat2 = new Mat();
-//        Imgproc.cvtColor(mat, imageMat2, Imgproc.COLOR_RGB2GRAY);
-//        Mat mRgba = mat;
-//        Mat mGray = imageMat2;
-//
-//        Scalar CONTOUR_COLOR = new Scalar(1, 255, 128, 0);
-//        MatOfKeyPoint keyPoint = new MatOfKeyPoint();
-//        List<KeyPoint> listPoint = new ArrayList<>();
-//        KeyPoint kPoint = new KeyPoint();
-//        Mat mask = Mat.zeros(mGray.size(), CvType.CV_8UC1);
-//        int rectanx1;
-//        int rectany1;
-//        int rectanx2;
-//        int rectany2;
-//
-//        Scalar zeros = new Scalar(0,0,0);
-//        List<MatOfPoint> contour2 = new ArrayList<>();
-//        Mat kernel = new Mat(1, 50, CvType.CV_8UC1, Scalar.all(255));
-//        Mat morByte = new Mat();
-//        Mat hierarchy = new Mat();
-//
-//        Rect rectan3 = new Rect();
-//        int imgSize = mRgba.height() * mRgba.width();
 
         List<Rect> rotatedtext = new ArrayList<Rect>();
         for (int i=0; i<text.size(); i++) {
@@ -802,59 +753,28 @@ public class DetectActivity extends AppCompatActivity {
             rotatedtext.add(rotRect);
         }
 
-        if(true){
-//            FeatureDetector detector = FeatureDetector.create(FeatureDetector.MSER);
-//            detector.detect(mGray, keyPoint);
-//            listPoint = keyPoint.toList();
-//            for(int ind = 0; ind < listPoint.size(); ++ind){
-//                kPoint = listPoint.get(ind);
-//                rectanx1 = (int ) (kPoint.pt.x - 0.5 * kPoint.size);
-//                rectany1 = (int ) (kPoint.pt.y - 0.5 * kPoint.size);
-//
-//                rectanx2 = (int) (kPoint.size);
-//                rectany2 = (int) (kPoint.size);
-//                if(rectanx1 <= 0){
-//                    rectanx1 = 1;
-//                }
-//                if(rectany1 <= 0){
-//                    rectany1 = 1;
-//                }
-//                if((rectanx1 + rectanx2) > mGray.width()){
-//                    rectanx2 = mGray.width() - rectanx1;
-//                }
-//                if((rectany1 + rectany2) > mGray.height()){
-//                    rectany2 = mGray.height() - rectany1;
-//                }
-//                Rect rectant = new Rect(rectanx1, rectany1, rectanx2, rectany2);
-//                Mat roi = new Mat(mask, rectant);
-//                roi.setTo(CONTOUR_COLOR);
-//            }
-//
-//            Imgproc.morphologyEx(mask, morByte, Imgproc.MORPH_DILATE, kernel);
-//            Imgproc.findContours(morByte, contour2, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
-            Bitmap bmp = null;
-            StringBuilder sb = new StringBuilder();
-            for(int i = 0; i<rotatedtext.size(); ++i){
-                Rect rotatedRect = rotatedtext.get(i);
-                try {
-                    Mat croppedPart = mat.submat(rotatedRect);
-                    bmp = Bitmap.createBitmap(croppedPart.width(), croppedPart.height(), Bitmap.Config.ARGB_8888);
-                    Utils.matToBitmap(croppedPart, bmp);
-                } catch (Exception e){
-                    Log.d(TAG, "Cropped part error");
-                }
-                if (bmp != null){
-                    String str = getTextWithTesseract (bmp); //this is where always get an error
-                    if (str != null){
-                        sb.append(str).append("\n");
-                    }
+        Bitmap bmp = null;
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i<rotatedtext.size(); ++i){
+            Rect rotatedRect = rotatedtext.get(i);
+            try {
+                Mat croppedPart = mat.submat(rotatedRect);
+                bmp = Bitmap.createBitmap(croppedPart.width(), croppedPart.height(), Bitmap.Config.ARGB_8888);
+                Utils.matToBitmap(croppedPart, bmp);
+            } catch (Exception e){
+                Log.d(TAG, "Cropped part error");
+            }
+            if (bmp != null){
+                String str = getTextWithTesseract (bmp); //this is where always get an error
+                if (str != null){
+                    sb.append(str).append("\n");
                 }
             }
-            exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
-            mat.copyTo(rgbaMat);
-            for (int i=0; i<text.size(); i++) {
-                Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
-            }
+        }
+        exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
+        mat.copyTo(rgbaMat);
+        for (int i=0; i<text.size(); i++) {
+            Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
         }
     }
 
