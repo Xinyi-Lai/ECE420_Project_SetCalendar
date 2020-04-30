@@ -40,4 +40,5 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     implementation project(path: ':openCVLibrary340dev')
     implementation 'com.rmtheis:tess-two:9.1.0' //added for OCR
+
 }

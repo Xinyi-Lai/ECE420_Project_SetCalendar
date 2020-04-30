@@ -1,11 +1,14 @@
 package com.example.finalsetcalendar;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.icu.util.Calendar;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.CalendarContract;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -13,6 +16,7 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
@@ -92,6 +96,7 @@ public class DetectActivity extends AppCompatActivity {
         });
 
         stepBtn.setOnClickListener(new View.OnClickListener() {
+            @RequiresApi(api = Build.VERSION_CODES.N)
             @Override
             public void onClick(View v) {
 
@@ -154,6 +159,10 @@ public class DetectActivity extends AppCompatActivity {
 
                     detectText(tessMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
                     Log.d("tag", exact_text);
+
+                    //set calendar
+                } else if(stepFlag == 7) {
+                    set_calendar();
                 }
 
 
@@ -871,5 +880,24 @@ public class DetectActivity extends AppCompatActivity {
         tessBaseAPI.end();
         //Log.d(TAG, retStr);
         return retStr;
+    }
+
+    //added for setting calendar
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    private void set_calendar(){
+        Calendar beginTime = Calendar.getInstance();
+        beginTime.set(2012, 0, 19, 7, 30);
+        Calendar endTime = Calendar.getInstance();
+        endTime.set(2012, 0, 19, 8, 30);
+        Intent intent = new Intent(Intent.ACTION_INSERT)
+                .setData(CalendarContract.Events.CONTENT_URI)
+                .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginTime.getTimeInMillis())
+                .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime.getTimeInMillis())
+                .putExtra(CalendarContract.Events.TITLE, "Yoga")
+                .putExtra(CalendarContract.Events.DESCRIPTION, "Group class")
+                .putExtra(CalendarContract.Events.EVENT_LOCATION, "The gym")
+                .putExtra(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_BUSY)
+                .putExtra(Intent.EXTRA_EMAIL, "rowan@example.com,trevor@example.com");
+        startActivity(intent);
     }
 }
