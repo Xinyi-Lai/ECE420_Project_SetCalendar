@@ -443,9 +443,8 @@ public class DetectActivity extends AppCompatActivity {
             Imgproc.rectangle(rgbaMat, non_text.get(i).tl(), non_text.get(i).br(), new Scalar(0, 0, 255), 2);
     }
 
-    /*
-        helper for hysteresis tracking
-     */
+
+    // helper for hysteresis tracking
     public boolean close(Rect a, Rect b) {
         double align_ratio = .2;
         double h_space_ratio = .75;
@@ -497,9 +496,8 @@ public class DetectActivity extends AppCompatActivity {
         return false;
         
     }
-    /*
-        compare weak and strong text
-     */
+
+
     public void hysteresis_tracking() {
 
         text = new ArrayList<Rect>();
@@ -554,7 +552,6 @@ public class DetectActivity extends AppCompatActivity {
                 return i;
             }
         }
-
         return -1;
     }
 
@@ -697,29 +694,7 @@ public class DetectActivity extends AppCompatActivity {
 
     //store eng.traineddata in tablet
     private void prepareTessData(){
-//        try {
-//            File dir = new File(DATA_PATH+TESS_DATA);
-//            if (!dir.exists()){
-//                dir.mkdir();
-//                }
-//            String fileList[] = getAssets().list("");
-//            for (String fileName : fileList){
-//                String pathToDataFile = DATA_PATH + TESS_DATA + "/" + fileName;
-//                Log.d(TAG, pathToDataFile);
-//                if (!(new File(pathToDataFile)).exists()){
-//                    InputStream is = getAssets().open(fileName);
-//                    OutputStream os = new FileOutputStream(pathToDataFile);
-//                    byte [] buff = new byte[1024];
-//                    int len;
-//                    while ((len = is.read(buff)) > 0){
-//                        os.write(buff, 0, len);
-//                    }
-//                    is.close();
-//                    os.close();
-//                }
-//        } catch (IOException e) {
-//            Log.w(TAG, e.getMessage());
-//        }
+
             String path = DATA_PATH + TESS_DATA + "/eng.traineddata";
             String name = "eng.traineddata";
 
@@ -775,30 +750,6 @@ public class DetectActivity extends AppCompatActivity {
     //The main function that extract the text using OCR
     //mat is a grayMat
     private void detectText(Mat mat){
-//        Mat imageMat2 = new Mat();
-//        Imgproc.cvtColor(mat, imageMat2, Imgproc.COLOR_RGB2GRAY);
-//        Mat mRgba = mat;
-//        Mat mGray = imageMat2;
-//
-//        Scalar CONTOUR_COLOR = new Scalar(1, 255, 128, 0);
-//        MatOfKeyPoint keyPoint = new MatOfKeyPoint();
-//        List<KeyPoint> listPoint = new ArrayList<>();
-//        KeyPoint kPoint = new KeyPoint();
-//        Mat mask = Mat.zeros(mGray.size(), CvType.CV_8UC1);
-//        int rectanx1;
-//        int rectany1;
-//        int rectanx2;
-//        int rectany2;
-//
-//        Scalar zeros = new Scalar(0,0,0);
-//        List<MatOfPoint> contour2 = new ArrayList<>();
-//        Mat kernel = new Mat(1, 50, CvType.CV_8UC1, Scalar.all(255));
-//        Mat morByte = new Mat();
-//        Mat hierarchy = new Mat();
-//
-//        Rect rectan3 = new Rect();
-//        int imgSize = mRgba.height() * mRgba.width();
-
         List<Rect> rotatedtext = new ArrayList<Rect>();
         for (int i=0; i<text.size(); i++) {
             Rect tmp = text.get(i);
@@ -811,60 +762,30 @@ public class DetectActivity extends AppCompatActivity {
             rotatedtext.add(rotRect);
         }
 
-        if(true){
-//            FeatureDetector detector = FeatureDetector.create(FeatureDetector.MSER);
-//            detector.detect(mGray, keyPoint);
-//            listPoint = keyPoint.toList();
-//            for(int ind = 0; ind < listPoint.size(); ++ind){
-//                kPoint = listPoint.get(ind);
-//                rectanx1 = (int ) (kPoint.pt.x - 0.5 * kPoint.size);
-//                rectany1 = (int ) (kPoint.pt.y - 0.5 * kPoint.size);
-//
-//                rectanx2 = (int) (kPoint.size);
-//                rectany2 = (int) (kPoint.size);
-//                if(rectanx1 <= 0){
-//                    rectanx1 = 1;
-//                }
-//                if(rectany1 <= 0){
-//                    rectany1 = 1;
-//                }
-//                if((rectanx1 + rectanx2) > mGray.width()){
-//                    rectanx2 = mGray.width() - rectanx1;
-//                }
-//                if((rectany1 + rectany2) > mGray.height()){
-//                    rectany2 = mGray.height() - rectany1;
-//                }
-//                Rect rectant = new Rect(rectanx1, rectany1, rectanx2, rectany2);
-//                Mat roi = new Mat(mask, rectant);
-//                roi.setTo(CONTOUR_COLOR);
-//            }
-//
-//            Imgproc.morphologyEx(mask, morByte, Imgproc.MORPH_DILATE, kernel);
-//            Imgproc.findContours(morByte, contour2, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
-            Bitmap bmp = null;
-            StringBuilder sb = new StringBuilder();
-            for(int i = 0; i<rotatedtext.size(); ++i){
-                Rect rotatedRect = rotatedtext.get(i);
-                try {
-                    Mat croppedPart = mat.submat(rotatedRect);
-                    bmp = Bitmap.createBitmap(croppedPart.width(), croppedPart.height(), Bitmap.Config.ARGB_8888);
-                    Utils.matToBitmap(croppedPart, bmp);
-                } catch (Exception e){
-                    Log.d(TAG, "Cropped part error");
-                }
-                if (bmp != null){
-                    String str = getTextWithTesseract (bmp); //this is where always get an error
-                    if (str != null){
-                        sb.append(str).append("\n");
-                    }
-                }
+        Bitmap bmp = null;
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i<rotatedtext.size(); ++i){
+            Rect rotatedRect = rotatedtext.get(i);
+            try {
+                Mat croppedPart = mat.submat(rotatedRect);
+                bmp = Bitmap.createBitmap(croppedPart.width(), croppedPart.height(), Bitmap.Config.ARGB_8888);
+                Utils.matToBitmap(croppedPart, bmp);
+            } catch (Exception e){
+                Log.d(TAG, "Cropped part error");
             }
-            exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
-            mat.copyTo(rgbaMat);
-            for (int i=0; i<text.size(); i++) {
-                Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
+            if (bmp != null){
+                String str = getTextWithTesseract (bmp); //this is where always get an error
+                if (str != null){
+                    sb.append(str).append("\n");
+                }
             }
         }
+        exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
+        mat.copyTo(rgbaMat);
+        for (int i=0; i<text.size(); i++) {
+            Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
+        }
+
     }
 
     //this function is a helper function for the detectText() function
@@ -882,22 +803,53 @@ public class DetectActivity extends AppCompatActivity {
         return retStr;
     }
 
+
     //added for setting calendar
     @RequiresApi(api = Build.VERSION_CODES.N)
     private void set_calendar(){
+
+        // Parse the exact text string
+        String title = exact_text.split("\n")[0];
+        String date = exact_text.split("\n")[1];
+        String time = exact_text.split("\n")[2];
+        int year = Integer.parseInt(date.split(" ")[2]);
+        int day = Integer.parseInt(date.split(" ")[0]);
+        int month;
+        switch (date.split(" ")[1]) {
+            case "JAN": {month = 0; break;}
+            case "FEB": {month = 1; break;}
+            case "MAR": {month = 2; break;}
+            case "APR": {month = 3; break;}
+            case "MAY": {month = 4; break;}
+            case "JUN": {month = 5; break;}
+            case "JUL": {month = 6; break;}
+            case "AUG": {month = 7; break;}
+            case "SEP": {month = 8; break;}
+            case "OCT": {month = 9; break;}
+            case "NOV": {month = 10; break;}
+            case "DEC": {month = 11; break;}
+            default: month = 0;
+        }
+
+        int startHour = Integer.parseInt( time.split(" TO ")[0].split(":")[0] );
+        int startMinute = Integer.parseInt( time.split(" TO ")[0].split(":")[1] );
+        int endHour = Integer.parseInt( time.split(" TO ")[1].split(":")[0] );
+        int endMinute = Integer.parseInt( time.split(" TO ")[1].split(":")[1] );
+
         Calendar beginTime = Calendar.getInstance();
-        beginTime.set(2012, 0, 19, 7, 30);
+        beginTime.set(year, month, day, startHour, startMinute);
         Calendar endTime = Calendar.getInstance();
-        endTime.set(2012, 0, 19, 8, 30);
+        endTime.set(year, month, day, endHour, endMinute);
+
         Intent intent = new Intent(Intent.ACTION_INSERT)
                 .setData(CalendarContract.Events.CONTENT_URI)
                 .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginTime.getTimeInMillis())
                 .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime.getTimeInMillis())
-                .putExtra(CalendarContract.Events.TITLE, "Yoga")
-                .putExtra(CalendarContract.Events.DESCRIPTION, "Group class")
-                .putExtra(CalendarContract.Events.EVENT_LOCATION, "The gym")
-                .putExtra(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_BUSY)
-                .putExtra(Intent.EXTRA_EMAIL, "rowan@example.com,trevor@example.com");
+                .putExtra(CalendarContract.Events.TITLE, title)
+                .putExtra(CalendarContract.Events.DESCRIPTION, title);
+//                .putExtra(CalendarContract.Events.EVENT_LOCATION, "The gym")
+//                .putExtra(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_BUSY)
+//                .putExtra(Intent.EXTRA_EMAIL, "rowan@example.com, trevor@example.com");
         startActivity(intent);
     }
 }
