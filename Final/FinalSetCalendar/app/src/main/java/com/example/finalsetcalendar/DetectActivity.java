@@ -59,6 +59,7 @@ public class DetectActivity extends AppCompatActivity {
 
     Mat origMat, rgbaMat, grayMat, bwMat;
     List<Rect> rects, strong_text, weak_text, non_text, text;
+    Rect detect_rect;
 
     //four variables created for OCR
     private static final String TAG = "TessTag"; // tag for Tess part
@@ -119,7 +120,7 @@ public class DetectActivity extends AppCompatActivity {
                 // Step 3: classify ROI
                 else if (stepFlag == 3) {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
-                    //Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
                     cannyClassify();
 
                     //String mlbp= encodeImg(rects.get(7));   //"M"
@@ -134,13 +135,13 @@ public class DetectActivity extends AppCompatActivity {
                 //hysteresis
                 } else if(stepFlag == 4) {
                     Log.d("tag", "step" + stepFlag + ": Hysteresis");
-                    Toast.makeText(DetectActivity.this, "Hysteresis...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(DetectActivity.this, "Hysteresis Tracking", Toast.LENGTH_SHORT).show();
                     hysteresis_tracking();
 
                     //grouping
                 } else if(stepFlag == 5) {
                     Log.d("tag", "step" + stepFlag + ": Grouping");
-                    Toast.makeText(DetectActivity.this, "Grouping...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(DetectActivity.this, "Grouping", Toast.LENGTH_SHORT).show();
                     grouping();
 
                     //extracting text
@@ -159,14 +160,14 @@ public class DetectActivity extends AppCompatActivity {
 
                     detectText(tessMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
                     Log.d("tag", exact_text);
-
+                    Toast.makeText(DetectActivity.this, exact_text, Toast.LENGTH_SHORT).show();
                     //set calendar
                 } else if(stepFlag == 7) {
                     set_calendar();
                 }
 
-
                 // Mat to Bitmap to Imageview
+                Imgproc.rectangle(rgbaMat, detect_rect.tl(), detect_rect.br(), new Scalar(180,180,180), 2);
                 Utils.matToBitmap(rgbaMat, bmp);
                 textImage.setImageBitmap(bmp);
             }
@@ -193,11 +194,18 @@ public class DetectActivity extends AppCompatActivity {
         width = bmp.getWidth();
         //Log.d("tag", "(height, width) = " + height + ", " + width);
 
+        // Real detection area
+        detect_rect = new Rect(new Point(width/4, height/10), new Point(width*3/4, height*9/10));
+
         // Bitmap to Mat
         Utils.bitmapToMat(bmp, origMat);
         Imgproc.cvtColor(origMat, grayMat, Imgproc.COLOR_RGB2GRAY);
         Imgproc.threshold(grayMat, bwMat, 128, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
+
         // Display orig image
+        origMat.copyTo(rgbaMat);
+        Imgproc.rectangle(rgbaMat, detect_rect.tl(), detect_rect.br(), new Scalar(150, 150, 150), 2);
+        Utils.matToBitmap(rgbaMat, bmp);
         textImage.setImageBitmap(bmp);
     }
 
@@ -503,12 +511,6 @@ public class DetectActivity extends AppCompatActivity {
         text = new ArrayList<Rect>();
         List<Rect> temp = new ArrayList<Rect>();
 
-        // criteria for removing noisy strong text
-        int top_bound = (int) ((float)height / 8.0);
-        int bottom_bound = (int) ((float)height * 7.0 / 8.0);
-        int left_bound = (int) ((float)width / 8.0);
-        int right_bound = (int) ((float)width * 7.0 / 8.0);
-
         for(int i = 0; i < strong_text.size(); i++) {
             temp.add(strong_text.get(i));
         }
@@ -526,8 +528,8 @@ public class DetectActivity extends AppCompatActivity {
 
         for (int i=0; i<temp.size(); i++){
             // restrict the central part to be the valid text
-            if (temp.get(i).tl().x >= left_bound  && temp.get(i).tl().y >= top_bound &&
-                temp.get(i).br().x <= right_bound && temp.get(i).br().y <= bottom_bound) {
+            if (temp.get(i).tl().x >= detect_rect.x  && temp.get(i).tl().y >= detect_rect.y &&
+                temp.get(i).br().x <= detect_rect.x+detect_rect.width && temp.get(i).br().y <= detect_rect.y+detect_rect.height) {
                 text.add(temp.get(i));
             }
         }
@@ -630,19 +632,8 @@ public class DetectActivity extends AppCompatActivity {
                 int w = Math.max(text.get(0).x + text.get(0).width,text.get(merge_index).x+ text.get(merge_index).width) - x;
                 int h = Math.max(text.get(0).y +text.get(0).height,text.get(merge_index).y+ text.get(merge_index).height) - y;
 
-//                Log.d("tag", " initial index "+ text.get(0));
-//                Log.d("tag", " merge index "+ text.get(merge_index));
-//
-//                Log.d("tag", " x "+ text.get(0).x);
-//                Log.d("tag", " y "+ text.get(0).y);
-//                Log.d("tag", " m_x "+ text.get(merge_index).x);
-//                Log.d("tag", " m_y "+ text.get(merge_index).y);
-//
-//                Log.d("tag", " min_x "+ x);
-//                Log.d("tag", " min_y "+ y);
-
                 text.set(0,new Rect(x,y,w,h));
-//                Log.d("tag", " new rect "+ text.get(merge_index));
+                //Log.d("tag", " new rect "+ text.get(merge_index));
                 //Log.d("tag", " prior to text size change: "+ text.size());
                 text.remove(merge_index);
                 //Log.d("tag", "text size change: "+ text.size());
@@ -781,10 +772,16 @@ public class DetectActivity extends AppCompatActivity {
             }
         }
         exact_text = sb.toString(); //this is what we are looking for, THE EXACT TEXT!!!
-        mat.copyTo(rgbaMat);
+        origMat.copyTo(rgbaMat);
         for (int i=0; i<text.size(); i++) {
-            Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
+            Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
         }
+
+//        Imgproc.putText(rgbaMat, exact_text, new Point(100,100), Core.FONT_HERSHEY_COMPLEX, 1.0, new Scalar(255,255,255));
+//        mat.copyTo(rgbaMat);
+//        for (int i=0; i<text.size(); i++) {
+//            Imgproc.rectangle(rgbaMat, rotatedtext.get(i).tl(), rotatedtext.get(i).br(), new Scalar(0, 255, 0), 2);
+//        }
 
     }
 
