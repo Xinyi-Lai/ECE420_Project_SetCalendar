@@ -57,8 +57,8 @@ public class DetectActivity extends AppCompatActivity {
     int stepFlag;
     String exact_text; // used to store the exact text extracted by OCR
 
-    Mat origMat, rgbaMat, grayMat, bwMat;
-    List<Rect> rects, strong_text, weak_text, non_text, text;
+    Mat origMat, rgbaMat, grayMat, bwMat = new Mat();
+    List<Rect> rects, strong_text, weak_text, non_text, text = new ArrayList<Rect>();
     Rect detect_rect;
 
     //four variables created for OCR
@@ -104,13 +104,15 @@ public class DetectActivity extends AppCompatActivity {
                 stepFlag += 1;
                 // Step 1: extract MSER
                 if (stepFlag == 1) {
-                    mser_detect();
+                    rects = mser_detect();
+                    markRect(rects, new Scalar(0,255,0));
                     Log.d("tag", "step" + stepFlag + ": extract MSER => number of MSER regions: " + rects.size());
                     Toast.makeText(DetectActivity.this, "MSER extracted", Toast.LENGTH_SHORT).show();
                 }
                 // Step 2: reduce MSER
                 else if (stepFlag == 2) {
-                    mser_reduce();
+                    rects = mser_reduce(rects);
+                    markRect(rects, new Scalar(0,255,0));
                     Log.d("tag", "step" + stepFlag + ": reduce MSER => number of regions: " + rects.size());
                     Toast.makeText(DetectActivity.this, "MSER reduced", Toast.LENGTH_SHORT).show();
 //                    // DEBUG
@@ -122,47 +124,40 @@ public class DetectActivity extends AppCompatActivity {
                     Log.d("tag", "step" + stepFlag + ": classify ROI");
                     Toast.makeText(DetectActivity.this, "Classifying...", Toast.LENGTH_SHORT).show();
                     cannyClassify();
-
-                    //String mlbp= encodeImg(rects.get(7));   //"M"
-                    //String mlbp= encodeImg(rects.get(5));   //"6"
-                    //CannyClassifier myCanny = new CannyClassifier(mlbp);
-                    //double sim = myCanny.compare_mlbp(mlbp, myCanny.mlbp_dict.get("6"));
-                    //Log.d("tag", "simwithM: " + sim);
-                    //Log.d("tag", "letter: " + myCanny.letter);
-                    //Log.d("tag", "sim: " + myCanny.sim);
-                    //Log.d("tag", "class: " + myCanny.theclass);
-
-                //hysteresis
-                } else if(stepFlag == 4) {
+                }
+                // Step 4: Hysteresis
+                else if(stepFlag == 4) {
+                    text = hysteresis_tracking(strong_text);
+                    markRect(text, new Scalar(0,255,0));
                     Log.d("tag", "step" + stepFlag + ": Hysteresis");
                     Toast.makeText(DetectActivity.this, "Hysteresis Tracking", Toast.LENGTH_SHORT).show();
-                    hysteresis_tracking();
-
-                    //grouping
-                } else if(stepFlag == 5) {
+                }
+                // Step 5: Grouping
+                else if(stepFlag == 5) {
+                    text = grouping(text);
+                    markRect(text, new Scalar(0,255,0));
                     Log.d("tag", "step" + stepFlag + ": Grouping");
                     Toast.makeText(DetectActivity.this, "Grouping", Toast.LENGTH_SHORT).show();
-                    grouping();
-
-                    //extracting text
-                    //this if block is for extracting text by OCR
-                } else if(stepFlag == 6) {
+                }
+                // Step 6: Extracting the texts with OCR
+                else if(stepFlag == 6) {
                     Log.d("tag", "step" + stepFlag + ": Extracting text");
                     Toast.makeText(DetectActivity.this, "Extracting text...", Toast.LENGTH_SHORT).show();
 
                     prepareTessData();
+
                     Mat tessMat = new Mat();
                     grayMat.copyTo(tessMat);
-
                     // rotate the image before ocr
                     Mat rotM = Imgproc.getRotationMatrix2D(new Point(tessMat.cols()/2, tessMat.rows()/2), 270, 1);
                     Imgproc.warpAffine(tessMat, tessMat, rotM, tessMat.size());
-
                     detectText(tessMat); //this one extract all the text in rgbaMat (this should be fine, if prepareTessData() works)
+
                     Log.d("tag", exact_text);
                     Toast.makeText(DetectActivity.this, exact_text, Toast.LENGTH_SHORT).show();
-                    //set calendar
-                } else if(stepFlag == 7) {
+                }
+                // Step 7: Set calendar
+                else if(stepFlag == 7) {
                     set_calendar();
                 }
 
@@ -176,6 +171,10 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
+    /**
+     * Initialization and reset
+     * Clean all the local variables and reload the bitmap from main activity
+     */
     private void reset() {
         // reset variable
         stepFlag = 0;
@@ -210,61 +209,54 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    public void mser_detect(){
+    /**
+     * Mark the rectangle on the image
+     * @param rects a list of rectangles to be marked
+     * @param color the color of the rectangles
+     */
+    private void markRect(List<Rect> rects, Scalar color) {
+        origMat.copyTo(rgbaMat);
+        for (int i=0; i<rects.size(); i++) {
+            Imgproc.rectangle(rgbaMat, rects.get(i).tl(), rects.get(i).br(), color, 2);
+        }
+    }
+
+
+    /**
+     * Extract all the MSER regions, using Imgproc
+     * @return a list of MSER regions
+     */
+    private List<Rect> mser_detect(){
         // basic variable
         MSER mser = create();
-        List<MatOfPoint> msers = new ArrayList<MatOfPoint>();
+        List<MatOfPoint> msers = new ArrayList<>();
         MatOfRect bboxes = new MatOfRect();
         // detect MSER regions
         mser.detectRegions(grayMat, msers, bboxes);
-
         // get a list of rects
+        List<Rect> rects = new ArrayList<>();
         for (int i=0; i<msers.size(); i++) {
             rects.add(Imgproc.boundingRect(msers.get(i)));
         }
-        // mark MSER region
-        origMat.copyTo(rgbaMat);
-        for (int i=0; i<rects.size(); i++) {
-            Imgproc.rectangle(rgbaMat, rects.get(i).tl(), rects.get(i).br(), new Scalar(0, 255, 0), 2);
-        }
-    }
-
-    public void mser_reduce(){
-        // reduce MSER regions
-        rects = reduce_mser(rects);
-
-        // mark MSER region
-        origMat.copyTo(rgbaMat);
-        for (int i=0; i<rects.size(); i++) {
-            Imgproc.rectangle(rgbaMat, rects.get(i).tl(), rects.get(i).br(), new Scalar(0, 255, 0), 2);
-        }
+        return rects;
     }
 
 
-    public boolean cover(Rect rect1, Rect rect2){
-        return rect1.x <= rect2.x && rect1.x + rect1.width >= rect2.x + rect2.width &&
-                rect1.y <= rect2.y && rect1.y + rect1.height >= rect2.y + rect2.height;
-    }
-
-    public boolean isMaximal(Rect rect, List<Rect> rects){
-        for (int i=0; i<rects.size(); i++){
-            if (rect != rects.get(i) && cover(rects.get(i), rect)){
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public List<Rect> reduce_mser(List<Rect> regions){
-        List<Rect> rects = new ArrayList<Rect>();
-        List<Rect> real_rects = new ArrayList<Rect>();
+    /**
+     * Reduce the MSER regions with inappropriate size and that are not maximal
+     * @param regions the list of regions to be reduced
+     * @return a list of reduced regions
+     */
+    private List<Rect> mser_reduce(List<Rect> regions){
+        List<Rect> rects = new ArrayList<>();
+        List<Rect> real_rects = new ArrayList<>();
 
         // region edge
-        double EDGE_MIN = (double) (Math.min(height,width)/60.0);
-        double EDGE_MAX = (double) (Math.max(height,width)*0.8);
+        double EDGE_MIN = Math.min(height,width)/60.0;
+        double EDGE_MAX = Math.max(height,width)*0.8;
         // region area
-        double AREA_MIN = (double) (height*width/2000.0);
-        double AREA_MAX = (double) (height*width*0.1);
+        double AREA_MIN = height*width/2000.0;
+        double AREA_MAX = height*width*0.1;
         // aspect ratio
         double AR_MIN = 0.2;
         double AR_MAX = 3;
@@ -295,18 +287,56 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    public String encodeImg( Rect roi ) {
+    /**
+     * Helper function of mser_reduce, check if rect1 covers rect2
+     * @param rect1 rect1
+     * @param rect2 rect2
+     * @return true if rect1 covers rect2
+     */
+    private boolean cover(Rect rect1, Rect rect2){
+        return rect1.x <= rect2.x && rect1.x + rect1.width >= rect2.x + rect2.width &&
+                rect1.y <= rect2.y && rect1.y + rect1.height >= rect2.y + rect2.height;
+    }
 
-        // to see which rect is being encoded
-        origMat.copyTo(rgbaMat);
-        Imgproc.rectangle(rgbaMat, roi.tl(), roi.br(), new Scalar(0, 255, 0), 2);
-//        // FIXME: why??
-//        Utils.matToBitmap(rgbaMat, bmp);
-//        textImage.setImageBitmap(bmp);
+    /**
+     * Helper function of mser_reduce, check if rect is maximal in the list of rects
+     * @param rect the rect to be checked
+     * @param rects the list of rects to be checked against
+     * @return true if rect is maximal
+     */
+    private boolean isMaximal(Rect rect, List<Rect> rects){
+        for (int i=0; i<rects.size(); i++){
+            if (rect != rects.get(i) && cover(rects.get(i), rect)){
+                return false;
+            }
+        }
+        return true;
+    }
 
 
-        ////////////////////// first resize ////////////////////////////////////////////
+    /**
+     * Encode the given roi into an MLBP sequence
+     * @param roi region of interest
+     * @return MLBP sequence
+     */
+    private String encodeImg( Rect roi ) {
+
+        // first resize
         int size = 32;
+        Mat resizeMat = resizeROI(roi, size);
+        // then encode
+        String mlbp = mlbp_encode(resizeMat, size, false);
+        //Log.d("tag", mlbp);
+        return mlbp;
+    }
+
+    /**
+     * Helper function of encodeImg, resize the given roi into specified size, padded with white and rotate
+     * @param roi region of interest
+     * @param size size
+     * @return a resized roi, mat
+     */
+    private Mat resizeROI(Rect roi, int size) {
         Mat resizeMat;  // 32x32
         Mat tmp = new Mat();    // resized roi
         int h = roi.height;
@@ -370,19 +400,23 @@ public class DetectActivity extends AppCompatActivity {
         bwMat.put(0, 0, bwData);
         rgbaMat = bwMat;
 */
-
-        ////////////////////// then encode ////////////////////////////////////////////
-        String mlbp = mlbp_encode(resizeMat, size, false);
-        //Log.d("tag", mlbp);
-        return mlbp;
+        return resizeMat;
     }
 
-    public String mlbp_encode(Mat img, int size, boolean inv){
-        String img_mlbp = "";
+
+    /**
+     * Helper function of encodeImg, MLBP (Mean Local Binary Pattern) encoding of a given image
+     * @param img the ROI to be encoded
+     * @param size size of the ROI, should be 32 in our case
+     * @param inv whether or not the ROI needs to be inverted, false in our case, deal with scene text
+     * @return the MLBP binary string
+     */
+    private String mlbp_encode(Mat img, int size, boolean inv){
+        StringBuilder img_mlbp = new StringBuilder();
 
         for (int i=1; i<size-1; i++){
             for (int j=1; j<size-1; j++){
-                String mlbp = "";
+                StringBuilder mlbp = new StringBuilder();
                 Mat roi = img.rowRange(i-1, i+2).colRange(j-1, j+2);
                 double avg = mat_mean(roi);
                 int[] neigh_row_idx = {i-1, i-1, i-1, i,   i+1, i+1, i+1, i};
@@ -390,21 +424,26 @@ public class DetectActivity extends AppCompatActivity {
 
                 for (int k=0; k<neigh_col_idx.length; k++){
                     if (!inv){
-                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] > avg) mlbp += "1";
-                        else mlbp += "0";
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] > avg) mlbp.append("1");
+                        else mlbp.append("0");
                     }else{
-                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] < avg) mlbp += "1";
-                        else mlbp += "0";
+                        if (img.get(neigh_row_idx[k], neigh_col_idx[k])[0] < avg) mlbp.append("1");
+                        else mlbp.append("0");
                     }
                 }
-                img_mlbp += mlbp;
+                img_mlbp.append(mlbp);
             }
         }
 
-        return img_mlbp;
+        return img_mlbp.toString();
     }
 
-    public double mat_mean(Mat img){
+    /**
+     * Helper function of mlbp_encode
+     * @param img the image region
+     * @return the mean value of the image
+     */
+    private double mat_mean(Mat img){
         double sum = 0;
         for (int i=0; i<img.rows(); i++){
             for (int j=0; j<img.cols(); j++){
@@ -415,19 +454,18 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    public void cannyClassify (){
+    /**
+     * Classify the rois into strong text, weak text and non text based on the cannyclassifier's output
+     */
+    private void cannyClassify(){
 
-        strong_text = new ArrayList<Rect>();
-        weak_text = new ArrayList<Rect>();
-        non_text = new ArrayList<Rect>();
+        strong_text = new ArrayList<>();
+        weak_text = new ArrayList<>();
+        non_text = new ArrayList<>();
 
         for (int i=0; i<rects.size(); i++){
-
             String mlbp= encodeImg(rects.get(i));
             CannyClassifier myCanny = new CannyClassifier(mlbp);
-
-//            Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
-//            Log.d("tag", "letter: " + myCanny.letter + "; sim: " + myCanny.sim + "; class: " + myCanny.theclass);
 
             if (myCanny.theclass == myCanny.STRONG) {
                 strong_text.add(rects.get(i));
@@ -436,12 +474,14 @@ public class DetectActivity extends AppCompatActivity {
             } else {
                 non_text.add(rects.get(i));
             }
+//            Log.d("tag", "classifying: " + i*100 / rects.size() + "%");
+//            Log.d("tag", "letter: " + myCanny.letter + "; sim: " + myCanny.sim + "; class: " + myCanny.theclass);
         }
 
         Log.d("tag", "# of strong: " + strong_text.size());
         Log.d("tag", "# of weak: " + weak_text.size());
 
-        // mark strong text with green boxes, weak text with red boxes
+        // mark strong text with green boxes, weak text with red boxes, non text with blue boxes
         origMat.copyTo(rgbaMat);
         for (int i=0; i<strong_text.size(); i++)
             Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
@@ -452,26 +492,58 @@ public class DetectActivity extends AppCompatActivity {
     }
 
 
-    // helper for hysteresis tracking
-    public boolean close(Rect a, Rect b) {
+    /**
+     * Hysteresis tracking
+     * @param strong_text strong text to be hysteresis off
+     * @return a list of valid text inside the detect area
+     */
+    private List<Rect> hysteresis_tracking( List<Rect> strong_text) {
+        List<Rect> real_text = new ArrayList<>();
+        List<Rect> temp = new ArrayList<>(strong_text);
+
+        while(!strong_text.isEmpty()) {
+            for(int i = 0; i < weak_text.size(); i++) {
+                if(!temp.contains(weak_text.get(i)) && close(weak_text.get(i),strong_text.get(0))) {
+                    temp.add(weak_text.get(i));
+                    strong_text.add(weak_text.get(i));
+                }
+            }
+            strong_text.remove(0);
+        }
+
+        // restrict the central part to be the valid text
+        for (int i=0; i<temp.size(); i++){
+            if (temp.get(i).tl().x >= detect_rect.x  && temp.get(i).tl().y >= detect_rect.y &&
+                    temp.get(i).br().x <= detect_rect.x+detect_rect.width && temp.get(i).br().y <= detect_rect.y+detect_rect.height) {
+                real_text.add(temp.get(i));
+            }
+        }
+        Log.d("tag", "text size: " + real_text.size());
+        return real_text;
+    }
+
+    /**
+     * Helper function for hysteresis tracking, decide whether rect a and rect b are close enough
+     * @param a rect a
+     * @param b rect b
+     * @return true if a and b are close enough
+     */
+    private boolean close(Rect a, Rect b) {
         double align_ratio = .2;
         double h_space_ratio = .75;
         double v_space_ratio = .05;
-        //dimensions of a
+
+        // coordinate transformation
 
         int xa = height- (a.y+a.height);
         int ya = a.x;
-
         int wa = a.height;
         int ha = a.width;
 
-        //dimensions of b
         int xb = height - (b.y+b.height);
         int yb = b.x;
-
         int wb = b.height;
         int hb = b.width;
-
 
 //        int xa = a.x;
 //        int ya = a.y;
@@ -487,182 +559,105 @@ public class DetectActivity extends AppCompatActivity {
 //        int hb = b.height;
 
         if(yb <= ya + ha - hb*align_ratio && yb + hb >= ya + hb*align_ratio) {
-
             if((xb <= xa + wa + wb*h_space_ratio && xb >= xa + wa - wb*h_space_ratio ) ||
                     (xb + wb >= xa - wb*h_space_ratio && xb + wb <= xa + wb*h_space_ratio)) {
                 return true;
             }
         }
         if(xb <= xa + wa + wb*align_ratio && xb + wb >= xa - wb*align_ratio) {
-
             if((yb <= ya + ha + hb*v_space_ratio && yb >= ya + ha - hb*v_space_ratio ) ||
                     (yb + hb >= ya - hb*v_space_ratio && yb + hb <= ya + hb*v_space_ratio)) {
                 return true;
             }
         }
-
         return false;
-        
     }
 
 
-    public void hysteresis_tracking() {
-
-        text = new ArrayList<Rect>();
-        List<Rect> temp = new ArrayList<Rect>();
-
-        for(int i = 0; i < strong_text.size(); i++) {
-            temp.add(strong_text.get(i));
-        }
-        while(!strong_text.isEmpty()) {
-            for(int i = 0; i < weak_text.size(); i++) {
-                if(!temp.contains(weak_text.get(i)) && close(weak_text.get(i),strong_text.get(0))) {
-                    temp.add(weak_text.get(i));
-                    strong_text.add(weak_text.get(i));
-                }
-            }
-            strong_text.remove(0);
-        }
-
-        Log.d("tag", "text size: " + temp.size());
-
-        for (int i=0; i<temp.size(); i++){
-            // restrict the central part to be the valid text
-            if (temp.get(i).tl().x >= detect_rect.x  && temp.get(i).tl().y >= detect_rect.y &&
-                temp.get(i).br().x <= detect_rect.x+detect_rect.width && temp.get(i).br().y <= detect_rect.y+detect_rect.height) {
-                text.add(temp.get(i));
-            }
-        }
-
-
-        origMat.copyTo(rgbaMat);
-        for (int i=0; i<text.size(); i++)
-            Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
-
-//        origMat.copyTo(rgbaMat);
-//        for (int i=0; i<strong_text.size(); i++)
-//            Imgproc.rectangle(rgbaMat, strong_text.get(i).tl(), strong_text.get(i).br(), new Scalar(0, 255, 0), 2);
-//        for (int i=0; i<weak_text.size(); i++)
-//            Imgproc.rectangle(rgbaMat, weak_text.get(i).tl(), weak_text.get(i).br(), new Scalar(255, 0, 0), 2);
-
-    }
-
-    public int find_merge_idx(Rect a) {
-
-        for(int i = 0; i < text.size(); i++) {
-            if(text.get(i) != a && close(a,text.get(i))) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-
-    public void grouping() {
+    /**
+     * Grouping each line of text together
+     * @param text to be grouped
+     * @return grouped text
+     */
+    private List<Rect> grouping(List<Rect> text) {
 
         //sort text
         Collections.sort(text, new Comparator<Rect>() {
             @Override
             public int compare(Rect a, Rect b) {
-                //sort by x//which is sorting by y of actual
+                //sort by x //which is sorting by y of actual
                 int xa = height- (a.y+a.height);
                 int ya = a.x;
-
-                int wa = a.height;
-                int ha = a.width;
-
-                //dimensions of b
                 int xb = height - (b.y+b.height);
                 int yb = b.x;
 
-                int wb = b.height;
-                int hb = b.width;
 //                int xa = a.x;
 //                int ya = a.y;
-//
-//                int wa = a.width;
-//                int ha = a.height;
-//
-//                //dimensions of b
 //                int xb = b.x;
 //                int yb = b.y;
-//
-//                int wb = b.width;
-//                int hb = b.height;
 
                 //sort by y
-                if(ya < yb) {
-
-                    return -1;
-                } else if(ya == yb) {
-                    //sort by x
-                    if(xa < xb) {
-                        return -1;
-                    } else {
-                        return 1;
-                    }
-                } else {
-
-                    return 1;
+                if(ya < yb) return -1;
+                // then sort by x
+                else if(ya == yb) {
+                    if(xa < xb) return -1;
+                    else return 1;
                 }
+                else return 1;
             }
         });
 
-        //sorts the text by x first(which is y for actual flipped image)
-//        for(int i = 0; i < text.size();i++) {
-//            Log.d("tag", "sorted text: " + text.get(i));
-//        }
-        //Log.d("tag", "space");
-        //Log.d("tag", "space");
-        int count = 0;
-
+//        int count = 0;
         while(true) {
-            count++;
+//            count++;
             //Log.d("tag", "infinite loop 1");
             //all possible merges
             while(true) {
-                int merge_index = find_merge_idx(text.get(0));
+                int merge_index = find_merge_idx(text.get(0), text);
+                // if nothing to be merged
                 if(merge_index == -1)
                     break;
 
-                //merging rectangle
-
+                // merge rectangle
                 int x = Math.min(text.get(0).x,text.get(merge_index).x);
                 int y = Math.min(text.get(0).y,text.get(merge_index).y);
                 int w = Math.max(text.get(0).x + text.get(0).width,text.get(merge_index).x+ text.get(merge_index).width) - x;
                 int h = Math.max(text.get(0).y +text.get(0).height,text.get(merge_index).y+ text.get(merge_index).height) - y;
 
+                // replace the first rect with the merged rect and removed the one being merged
                 text.set(0,new Rect(x,y,w,h));
-                //Log.d("tag", " new rect "+ text.get(merge_index));
-                //Log.d("tag", " prior to text size change: "+ text.size());
                 text.remove(merge_index);
-                //Log.d("tag", "text size change: "+ text.size());
-                //Log.d("tag", "infinite loop 2");
             }
-            //move element to the end so we can compare the next element
-            //Rect temp = text.get(0);
+
+            // move element to the end so we can compare the next element
             text.add(text.get(0));
             text.remove(0);
+            // check if we can continue merging
             int stop = 1;
-            //Log.d("tag", "check for stop");
             for(int i = 0; i < text.size();i++) {
-                if(find_merge_idx(text.get(i)) != -1) {
+                if(find_merge_idx(text.get(i), text) != -1) {
                     stop = 0;
                     break;
                 }
             }
             if(stop==1)
                 break;
-            //Log.d("tag", "stop failed, text size: " + text.size());
         }
         Log.d("tag", "final grouped text size: " + text.size());
-        origMat.copyTo(rgbaMat);
-        for (int i=0; i<text.size(); i++) {
-            Imgproc.rectangle(rgbaMat, text.get(i).tl(), text.get(i).br(), new Scalar(0, 255, 0), 2);
-            Log.d("tag", "textidx: " + i + " x: "+text.get(i).x + " y: "+text.get(i).y + " w: "+text.get(i).width + " h: "+text.get(i).height);
-        }
+        return text;
+
     }
 
+    /**
+     * Helper function for grouping, find the index of rect to merge with a
+     * @param a rect to be merged
+     * @return the index of rect that are close enough to a and can be merged
+     */
+    private int find_merge_idx(Rect a, List<Rect> text) {
+        for(int i = 0; i < text.size(); i++)
+            if (text.get(i) != a && close(a, text.get(i))) return i;
+        return -1;
+    }
 
 
     /**
@@ -683,7 +678,10 @@ public class DetectActivity extends AppCompatActivity {
         }
     }
 
-    //store eng.traineddata in tablet
+
+    /**
+     * store eng.traineddata onto the tablet
+     */
     private void prepareTessData(){
 
             String path = DATA_PATH + TESS_DATA + "/eng.traineddata";
@@ -738,10 +736,12 @@ public class DetectActivity extends AppCompatActivity {
             Log.d(TAG, "prepare tess data succeeds");
     }
 
-    //The main function that extract the text using OCR
-    //mat is a grayMat
+    /**
+     * The main function that extract the text using OCR
+     * @param mat a grayMat
+     */
     private void detectText(Mat mat){
-        List<Rect> rotatedtext = new ArrayList<Rect>();
+        List<Rect> rotatedtext = new ArrayList<>();
         for (int i=0; i<text.size(); i++) {
             Rect tmp = text.get(i);
             int rotx = height - (tmp.y+tmp.height) - (height-width)/2;
@@ -785,7 +785,11 @@ public class DetectActivity extends AppCompatActivity {
 
     }
 
-    //this function is a helper function for the detectText() function
+    /**
+     * Helper function to get the string
+     * @param bitmap text area
+     * @return the detected text string in the given text area
+     */
     private String getTextWithTesseract(Bitmap bitmap){
         try {
             tessBaseAPI = new TessBaseAPI();

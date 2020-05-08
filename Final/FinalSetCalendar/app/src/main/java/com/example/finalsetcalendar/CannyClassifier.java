@@ -93,7 +93,13 @@ public class CannyClassifier {
     }
 
 
-    public double compare_mlbp(String mlbp_1, String mlbp_2){
+    /**
+     * Helper function for classify. It compares two mlbp sequence and return the similarity score
+     * @param mlbp_1 mlbp 1
+     * @param mlbp_2 mlbp 2
+     * @return similarity score
+     */
+    private double compare_mlbp(String mlbp_1, String mlbp_2){
         if ( (mlbp_1 == null) || (mlbp_2 == null) || (mlbp_1.length() != mlbp_2.length()) ){
             Log.d("classifier", "length does not match");
             return -1.0;
@@ -107,8 +113,11 @@ public class CannyClassifier {
         return 1.0 - ((double)dist / (double)mlbp_1.length());
     }
 
-
-    public void classify (){
+    /**
+     * Comparing the mlbp sequence with the mlbp dict.
+     * Find the highest similarity score and the most similar character.
+     */
+    private void classify (){
 
         //TODO: For testing
         List<String> exempt_list = new ArrayList<String>();
@@ -135,7 +144,9 @@ public class CannyClassifier {
         sim = maxsim;
     }
 
-
+    /**
+     * Apply the double threshold to classify this object into strong text, weak text, and non text.
+     */
     private void doublethreshold() {
 
         //TODO: tune parameters
